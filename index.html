@@ -1,474 +1,514 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="cs">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Školní knihovna – výpůjčky a vratky</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Školní knihovna</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-<!-- QR skener -->
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"
-        onerror="(function(){var s=document.createElement('script');s.src='https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js';document.head.appendChild(s);})();">
-</script>
-<style>
-  :root{
-    --bg1:#6b63ff; --bg2:#6aa5ff; --card:#fff; --text:#111827;
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    color:var(--text); background:linear-gradient(160deg,var(--bg1),var(--bg2)) fixed;
-    min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:18px;
-  }
-  .app{width:100%; max-width:480px}
-  .title{color:#fff; text-align:center; margin-bottom:14px}
-  .title h1{margin:0; font-size:28px}
-  .subtitle{opacity:.95; font-size:14px}
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            overflow: hidden;
+        }
 
-  .card{
-    background:var(--card); border-radius:18px; padding:18px; box-shadow:0 12px 28px rgba(0,0,0,.15);
-    margin-bottom:14px;
-  }
-  .step-title{font-size:22px; font-weight:800; margin:0 0 12px}
-  .big-emoji{font-size:64px; text-align:center; margin:4px 0 8px}
-  .muted{opacity:.75; font-size:12px}
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+        }
 
-  .input{width:100%; font-size:18px; padding:14px 16px; border-radius:14px; border:2px solid #e5e7eb; outline:none}
-  .btn{
-    display:inline-flex; align-items:center; justify-content:center; gap:10px; width:100%;
-    padding:14px 16px; border-radius:14px; border:none; cursor:pointer; font-size:18px; font-weight:700;
-    background:#22c55e; color:#fff; box-shadow:0 6px 16px rgba(0,0,0,.12); transition:transform .06s ease;
-  }
-  .btn:active{transform:translateY(1px)}
-  .btn-secondary{background:#f3f4f6; color:#111}
-  .btn-disabled{background:#d1d5db; cursor:not-allowed}
-  .actions{display:flex; gap:12px}
-  .action{flex:1; padding:16px; border-radius:16px; background:#f3f4f6; text-align:center; cursor:pointer; user-select:none}
-  .action .emoji{font-size:44px}
-  .action .label{margin-top:6px; font-weight:800; font-size:18px}
-  .action.borrow{background:#ecfdf5}
-  .action.return{background:#eff6ff}
-  .btn-ok{background:#111827; color:#fff}
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
 
-  #scanner{display:none}
-  #qr-region{width:100%; border-radius:16px; overflow:hidden; background:#000}
-  #qr-instructions{font-size:14px; opacity:.8; text-align:center; margin:10px 0 0}
+        .screen {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
 
-  .hidden{display:none!important}
-  .hint{color:#fff; text-align:center; font-size:12px; opacity:.9; margin-bottom:8px}
+        .screen.active {
+            display: block;
+        }
 
-  .modal{position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; padding:20px; z-index:20}
-  .modal-card{width:100%; max-width:420px; background:#fff; border-radius:18px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.25); text-align:center}
-  .modal h3{margin:6px 0 10px; font-size:21px}
-  .toast{position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 14px; border-radius:12px; font-weight:600; z-index:30}
-  
-  .debug{background:#f3f4f6; padding:10px; border-radius:8px; margin:10px 0; font-size:12px; font-family:monospace}
-</style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .big-button {
+            background: rgba(255,255,255,0.2);
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 40px 30px;
+            margin: 20px;
+            font-size: 1.8rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .big-button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+        }
+
+        .big-button:active {
+            transform: translateY(-2px);
+        }
+
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+        }
+
+        .two-buttons {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+
+        .two-buttons .big-button {
+            flex: 1;
+            min-width: 250px;
+            max-width: 280px;
+        }
+
+        #video {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            border-radius: 15px;
+            background: #333;
+            margin: 20px auto;
+            display: block;
+        }
+
+        .admin-link {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .admin-link:hover {
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            color: #333;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .modal-content h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        input {
+            padding: 15px;
+            font-size: 1.2rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin: 10px;
+            width: 200px;
+            text-align: center;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .admin-content {
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+
+        .record {
+            background: #f5f5f5;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .success {
+            background: #4CAF50;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 1.3rem;
+        }
+
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .big-button { 
+                font-size: 1.5rem; 
+                padding: 30px 20px;
+                min-height: 120px;
+            }
+            .icon { font-size: 3rem; }
+            .two-buttons { flex-direction: column; align-items: center; }
+        }
+    </style>
 </head>
 <body>
-<div class="app">
-  <div class="title">
-    <div style="font-size:38px">📚</div>
-    <h1>Školní knihovna</h1>
-    <div class="subtitle">Půjčování a vracení pomocí QR kódů</div>
-  </div>
+    <div class="container">
+        <a href="#" class="admin-link" onclick="showAdminLogin()">Administrace</a>
+        
+        <!-- Úvodní obrazovka -->
+        <div id="homeScreen" class="screen active">
+            <h1>📚 Školní knihovna</h1>
+            <div class="big-button" onclick="startStudentScan()">
+                <div class="icon">👤</div>
+                <div>Naskenuj svůj QR kód</div>
+            </div>
+        </div>
 
-  <!-- Debug info -->
-  <div id="debugInfo" class="debug hidden"></div>
+        <!-- Skenování žáka -->
+        <div id="studentScanScreen" class="screen">
+            <h1>Naskenuj své jméno</h1>
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="canvas" style="display: none;"></canvas>
+            <div class="big-button" onclick="goHome()" style="margin-top: 20px;">
+                <div>🏠 Zpět domů</div>
+            </div>
+        </div>
 
-  <!-- 1) ŽÁK -->
-  <div id="step-student" class="card">
-    <h2 class="step-title">1. Kdo si půjčuje/vrací?</h2>
-    <div class="big-emoji">👤</div>
-    <input id="studentInput" class="input" placeholder="Napiš nebo naskenuj: Jméno Příjmení|Třída (např. Jakub Novák|5.B)" autocomplete="off">
-    <div style="height:10px"></div>
-    <button id="scanStudentBtn" class="btn">📷 Skenovat QR kód žáka</button>
-    <div id="studentPreview" class="muted hidden" style="margin-top:8px"></div>
-  </div>
+        <!-- Výběr akce -->
+        <div id="actionScreen" class="screen">
+            <h1 id="studentName">Ahoj, žáku!</h1>
+            <div class="two-buttons">
+                <div class="big-button" onclick="selectAction('vypujcka')">
+                    <div class="icon">🏠</div>
+                    <div>Výpůjčka</div>
+                </div>
+                <div class="big-button" onclick="selectAction('vratka')">
+                    <div class="icon">🏫</div>
+                    <div>Vratka</div>
+                </div>
+            </div>
+            <div class="big-button" onclick="goHome()" style="margin-top: 20px;">
+                <div>🏠 Zpět domů</div>
+            </div>
+        </div>
 
-  <!-- 2) AKCE -->
-  <div id="step-action" class="card hidden">
-    <h2 class="step-title">2. Co chceš udělat?</h2>
-    <div class="actions">
-      <div id="btnBorrow" class="action borrow"><div class="emoji">🏠</div><div class="label">Půjčuji si</div></div>
-      <div id="btnReturn" class="action return"><div class="emoji">🏫</div><div class="label">Vracím</div></div>
+        <!-- Skenování knihy -->
+        <div id="bookScanScreen" class="screen">
+            <h1 id="actionTitle">Naskenuj knihu</h1>
+            <video id="video2" autoplay muted playsinline></video>
+            <canvas id="canvas2" style="display: none;"></canvas>
+            <div class="big-button" onclick="goBack()" style="margin-top: 20px;">
+                <div>↩️ Zpět</div>
+            </div>
+        </div>
+
+        <!-- Potvrzení -->
+        <div id="confirmScreen" class="screen">
+            <div id="confirmMessage" class="success"></div>
+            <div class="big-button" onclick="goHome()">
+                <div>✅ OK</div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- 3) KNIHA -->
-  <div id="step-book" class="card hidden">
-    <h2 class="step-title">3. Jakou knihu?</h2>
-    <div class="big-emoji">📖</div>
-    <input id="bookInput" class="input" placeholder="Napiš nebo naskenuj název knihy" autocomplete="off">
-    <div style="height:10px"></div>
-    <button id="scanBookBtn" class="btn">📷 Skenovat QR kód knihy</button>
-  </div>
-
-  <!-- SKENER -->
-  <div id="scanner" class="card">
-    <h2 class="step-title">Skenování QR kódu</h2>
-    <div id="qr-region"></div>
-    <div id="qr-instructions">Zaměřte QR kód. Po načtení se sken ukončí.</div>
-    <div style="margin-top:10px; display:flex; gap:10px">
-      <button id="cancelScan" class="btn btn-secondary">Zrušit</button>
-      <button id="flipBtn" class="btn btn-secondary">Přepnout kameru</button>
-      <button id="torchBtn" class="btn btn-secondary">Svítilna</button>
+    <!-- Admin modal -->
+    <div id="adminModal" class="modal">
+        <div class="modal-content">
+            <h2>Administrace</h2>
+            <input type="password" id="adminPassword" placeholder="Heslo" onkeypress="if(event.key==='Enter') adminLogin()">
+            <br>
+            <button class="btn" onclick="adminLogin()">Přihlásit</button>
+            <button class="btn" onclick="closeAdmin()">Zavřít</button>
+        </div>
     </div>
-  </div>
 
-  <div class="hint">Po potvrzení se aplikace vrátí na krok 1. Záznamy se dětem nezobrazují.</div>
-</div>
-
-<!-- MODAL POTVRZENÍ -->
-<div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true">
-  <div class="modal-card">
-    <div style="font-size:44px; margin-bottom:6px" id="modalEmoji">✅</div>
-    <h3 id="confirmText">—</h3>
-    <div class="muted">Záznam bude uložen a odeslán do Google Sheets.</div>
-    <div style="display:flex; gap:10px; margin-top:12px">
-      <button id="okBtn" class="btn btn-ok">OK</button>
+    <!-- Admin panel -->
+    <div id="adminPanel" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <h2>Administrace knihovny</h2>
+            <div class="admin-content" id="adminContent"></div>
+            <button class="btn" onclick="clearAllData()">Vymazat všechna data</button>
+            <button class="btn" onclick="exportData()">Exportovat data</button>
+            <button class="btn" onclick="closeAdmin()">Zavřít</button>
+        </div>
     </div>
-  </div>
-</div>
 
-<div id="toast" class="toast hidden"></div>
+    <script>
+        // Globální proměnné
+        let currentStudent = '';
+        let currentAction = '';
+        let isScanning = false;
+        let stream = null;
 
-<script>
-/* ===== KONFIGURACE ===== */
-const WEBAPP_URL   = "PASTE_WEBAPP_URL_HERE";   // např. https://script.google.com/macros/s/XXXXX/exec
-const SHARED_SECRET = "CHANGE_ME_SECRET";       // stejné jako v Apps Scriptu
-/* ======================= */
+        // Lokální úložiště
+        function saveRecord(student, book, action) {
+            const records = JSON.parse(localStorage.getItem('libraryRecords') || '[]');
+            const record = {
+                id: Date.now(),
+                student: student,
+                book: book,
+                action: action,
+                timestamp: new Date().toLocaleString('cs-CZ')
+            };
+            records.push(record);
+            localStorage.setItem('libraryRecords', JSON.stringify(records));
+            return record;
+        }
 
-const STORAGE_ALL   = "sk_knihovna_all_v1";
-const STORAGE_QUEUE = "sk_knihovna_queue_v1";
+        function getRecords() {
+            return JSON.parse(localStorage.getItem('libraryRecords') || '[]');
+        }
 
-let state = { name:null, clazz:null, action:null, book:null };
-let html5Qr, availableCameras = [], currentCameraIndex = 0, torchOn = false, isScanning = false;
-let onScanResult = () => {};
+        // Navigace
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
 
-const $ = s => document.querySelector(s);
-const show = (el, yes=true) => el.classList.toggle('hidden', !yes);
-const toast = (msg, ms=2200) => { const t=$('#toast'); t.textContent=msg; show(t,true); setTimeout(()=>show(t,false),ms); };
+        function goHome() {
+            stopScanning();
+            currentStudent = '';
+            currentAction = '';
+            showScreen('homeScreen');
+        }
 
-// Debug funkce
-function debug(msg) {
-  console.log(msg);
-  const debugEl = $('#debugInfo');
-  debugEl.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${msg}</div>`;
-  show(debugEl, true);
-}
+        function goBack() {
+            stopScanning();
+            showScreen('actionScreen');
+        }
 
-function parseStudent(raw){
-  const parts = String(raw||'').split('|').map(s=>s.trim()).filter(Boolean);
-  if(parts.length<2) return null;
-  return { name:parts[0], clazz:parts[1] };
-}
+        // QR skenování
+        function startStudentScan() {
+            showScreen('studentScanScreen');
+            startCamera('video', scanForStudent);
+        }
 
-function resetUI(){
-  state = { name:null, clazz:null, action:null, book:null };
-  $('#studentInput').value = ""; $('#bookInput').value = ""; $('#studentPreview').textContent="";
-  show($('#studentPreview'), false);
-  show($('#step-student'), true); show($('#step-action'), false); show($('#step-book'), false);
-  show($('#scanner'), false); stopScanner(); window.scrollTo({top:0,behavior:'smooth'});
-}
+        function startBookScan() {
+            showScreen('bookScanScreen');
+            document.getElementById('actionTitle').textContent = 
+                currentAction === 'vypujcka' ? 'Naskenuj knihu k výpůjčce' : 'Naskenuj knihu k vrácení';
+            startCamera('video2', scanForBook);
+        }
 
-function updateStudentPreview(){
-  const p = parseStudent($('#studentInput').value);
-  if(p){ $('#studentPreview').textContent = `Žák: ${p.name} • Třída: ${p.clazz}`; show($('#studentPreview'), true); }
-  else{ show($('#studentPreview'), false); }
-}
+        function startCamera(videoId, scanCallback) {
+            const video = document.getElementById(videoId);
+            const canvas = document.getElementById(videoId === 'video' ? 'canvas' : 'canvas2');
+            const context = canvas.getContext('2d');
 
-function goAction(){
-  const parsed = parseStudent($('#studentInput').value);
-  if(!parsed){ toast("Zadej/naskenuj žáka ve tvaru: Jméno|Třída"); return; }
-  state.name = parsed.name; state.clazz = parsed.clazz;
-  show($('#step-student'), false); show($('#step-action'), true);
-}
+            navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            }).then(mediaStream => {
+                stream = mediaStream;
+                video.srcObject = mediaStream;
+                isScanning = true;
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    scanQR();
+                };
 
-function goBook(){
-  const v = $('#bookInput').value.trim();
-  if(!v){ toast("Zadej/naskenuj název knihy."); return; }
-  state.book = v; confirmModal();
-}
+                function scanQR() {
+                    if (isScanning && video.readyState === video.HAVE_ENOUGH_DATA) {
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+                        
+                        if (code) {
+                            scanCallback(code.data);
+                            return;
+                        }
+                    }
+                    if (isScanning) {
+                        requestAnimationFrame(scanQR);
+                    }
+                }
+            }).catch(err => {
+                alert('Chyba při spuštění kamery: ' + err.message);
+            });
+        }
 
-/* ===== Detekce prostředí ===== */
-function checkEnvironment() {
-  debug(`Protocol: ${location.protocol}`);
-  debug(`Host: ${location.host}`);
-  debug(`User Agent: ${navigator.userAgent.substring(0, 100)}...`);
-  debug(`MediaDevices support: ${!!navigator.mediaDevices}`);
-  debug(`getUserMedia support: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
-}
+        function stopScanning() {
+            isScanning = false;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+        }
 
-/* ===== Inicializace kamer ===== */
-async function initializeCameras() {
-  try {
-    debug("Inicializuji kamery...");
-    
-    // Zkontroluj základní podporu
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error("Prohlížeč nepodporuje přístup ke kameře");
-    }
+        function scanForStudent(qrData) {
+            stopScanning();
+            currentStudent = qrData.trim();
+            document.getElementById('studentName').textContent = `Ahoj, ${currentStudent}!`;
+            showScreen('actionScreen');
+        }
 
-    // Získej seznam kamer
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    
-    debug(`Nalezeno ${videoDevices.length} video zařízení`);
-    videoDevices.forEach((device, index) => {
-      debug(`${index}: ${device.label || 'Neznámá kamera'} (${device.deviceId.substring(0, 10)}...)`);
-    });
+        function scanForBook(qrData) {
+            stopScanning();
+            const bookName = qrData.trim();
+            
+            // Uložit záznam
+            const record = saveRecord(currentStudent, bookName, currentAction);
+            
+            // Zobrazit potvrzení
+            const actionText = currentAction === 'vypujcka' ? 'VYPŮJČENA' : 'VRÁCENA';
+            document.getElementById('confirmMessage').innerHTML = 
+                `✅ Kniha "${bookName}" byla <strong>${actionText}</strong> na jméno ${currentStudent}.`;
+            
+            showScreen('confirmScreen');
+        }
 
-    if (videoDevices.length === 0) {
-      throw new Error("Nebyla nalezena žádná kamera");
-    }
+        function selectAction(action) {
+            currentAction = action;
+            startBookScan();
+        }
 
-    availableCameras = videoDevices;
-    return true;
-  } catch (error) {
-    debug(`Chyba při inicializaci kamer: ${error.message}`);
-    return false;
-  }
-}
+        // Administrace
+        function showAdminLogin() {
+            document.getElementById('adminModal').style.display = 'block';
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('adminPassword').focus();
+        }
 
-/* ===== QR SCANNER ===== */
-async function startScanner(onText){
-  if (isScanning) {
-    debug("Scanner už běží");
-    return;
-  }
+        function adminLogin() {
+            const password = document.getElementById('adminPassword').value;
+            if (password === 'topol') {
+                document.getElementById('adminModal').style.display = 'none';
+                showAdminPanel();
+            } else {
+                alert('Nesprávné heslo!');
+            }
+        }
 
-  try {
-    show($('#scanner'), true);
-    debug("Spouštím scanner...");
-    
-    // Inicializuj kamery pokud ještě nebyly
-    if (availableCameras.length === 0) {
-      const success = await initializeCameras();
-      if (!success) {
-        throw new Error("Nepodařilo se inicializovat kamery");
-      }
-    }
+        function showAdminPanel() {
+            const records = getRecords();
+            const content = document.getElementById('adminContent');
+            
+            if (records.length === 0) {
+                content.innerHTML = '<p>Zatím žádné záznamy.</p>';
+            } else {
+                content.innerHTML = records.map(record => `
+                    <div class="record">
+                        <strong>${record.timestamp}</strong><br>
+                        Žák: ${record.student}<br>
+                        Kniha: ${record.book}<br>
+                        Akce: ${record.action.toUpperCase()}
+                    </div>
+                `).reverse().join('');
+            }
+            
+            document.getElementById('adminPanel').style.display = 'block';
+        }
 
-    // Vytvoř html5Qr instance pokud neexistuje
-    if (!html5Qr) {
-      html5Qr = new Html5Qrcode("qr-region");
-      debug("Vytvořena Html5Qrcode instance");
-    }
+        function clearAllData() {
+            if (confirm('Opravdu chcete vymazat všechna data?')) {
+                localStorage.removeItem('libraryRecords');
+                alert('Všechna data byla vymazána.');
+                showAdminPanel();
+            }
+        }
 
-    // Vyber kameru (preferuj zadní kameru)
-    let selectedCamera = availableCameras[currentCameraIndex];
-    
-    // Pokud je k dispozici více kamer, zkus najít zadní
-    if (availableCameras.length > 1 && currentCameraIndex === 0) {
-      const backCamera = availableCameras.find(camera => 
-        /back|rear|environment|zadní/i.test(camera.label)
-      );
-      if (backCamera) {
-        selectedCamera = backCamera;
-        currentCameraIndex = availableCameras.indexOf(backCamera);
-      }
-    }
+        function exportData() {
+            const records = getRecords();
+            if (records.length === 0) {
+                alert('Žádná data k exportu.');
+                return;
+            }
+            
+            const csv = 'Datum,Čas,Žák,Kniha,Akce\n' + 
+                records.map(r => {
+                    const [datum, cas] = r.timestamp.split(' ');
+                    return `${datum},${cas},${r.student},${r.book},${r.action}`;
+                }).join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `knihovna_export_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
 
-    debug(`Používám kameru: ${selectedCamera.label || 'Neznámá kamera'}`);
+        function closeAdmin() {
+            document.getElementById('adminModal').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'none';
+        }
 
-    // Nastav scanning flag
-    isScanning = true;
-
-    // Spusť scanner
-    await html5Qr.start(
-      selectedCamera.deviceId,
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
-      },
-      (decodedText) => {
-        debug(`QR kód načten: ${decodedText.substring(0, 50)}...`);
-        stopScanner();
-        onText(decodedText.trim());
-      },
-      (errorMessage) => {
-        // Tiché logování chyb - normální při skenování
-      }
-    );
-
-    debug("Scanner úspěšně spuštěn");
-
-  } catch (error) {
-    debug(`Chyba scanneru: ${error.message}`);
-    isScanning = false;
-    
-    let userMessage = "Chyba při spuštění kamery: ";
-    
-    if (error.name === "NotAllowedError") {
-      userMessage += "Povolte přístup ke kameře v prohlížeči.";
-    } else if (error.name === "NotFoundError") {
-      userMessage += "Kamera nebyla nalezena nebo není dostupná.";
-    } else if (error.name === "NotReadableError") {
-      userMessage += "Kameru používá jiná aplikace.";
-    } else if (error.name === "SecurityError") {
-      userMessage += "Stránka musí běžet přes HTTPS.";
-    } else {
-      userMessage += error.message;
-    }
-    
-    toast(userMessage, 5000);
-    show($('#scanner'), false);
-  }
-}
-
-async function stopScanner(){
-  try {
-    if (html5Qr && isScanning) {
-      debug("Zastavujem scanner...");
-      await html5Qr.stop();
-      await html5Qr.clear();
-      debug("Scanner zastaven");
-    }
-  } catch (error) {
-    debug(`Chyba při zastavení scanneru: ${error.message}`);
-  } finally {
-    isScanning = false;
-  }
-}
-
-// Přepínání kamer
-async function switchCamera() {
-  if (!isScanning || availableCameras.length <= 1) return;
-  
-  try {
-    debug("Přepínám kameru...");
-    await stopScanner();
-    currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
-    setTimeout(() => startScanner(onScanResult), 500);
-  } catch (error) {
-    debug(`Chyba při přepínání kamery: ${error.message}`);
-  }
-}
-
-// Svítilna
-async function toggleTorch() {
-  if (!html5Qr || !isScanning) return;
-  
-  try {
-    torchOn = !torchOn;
-    await html5Qr.applyVideoConstraints({
-      advanced: [{ torch: torchOn }]
-    });
-    debug(`Svítilna: ${torchOn ? 'ZAP' : 'VYP'}`);
-  } catch (error) {
-    debug("Svítilna není dostupná na tomto zařízení");
-    toast("Svítilna není dostupná.", 2000);
-  }
-}
-
-/* ===== EVENT LISTENERY ===== */
-$('#scanStudentBtn').onclick = () => {
-  onScanResult = txt => {
-    $('#studentInput').value = txt;
-    updateStudentPreview();
-    goAction();
-  };
-  startScanner(onScanResult);
-};
-
-$('#scanBookBtn').onclick = () => {
-  onScanResult = txt => {
-    $('#bookInput').value = txt;
-    goBook();
-  };
-  startScanner(onScanResult);
-};
-
-$('#cancelScan').onclick = () => {
-  stopScanner();
-  show($('#scanner'), false);
-};
-
-$('#flipBtn').onclick = switchCamera;
-$('#torchBtn').onclick = toggleTorch;
-
-$('#studentInput').addEventListener('input', updateStudentPreview);
-$('#studentInput').addEventListener('keydown', e => { if(e.key==='Enter') goAction(); });
-$('#bookInput').addEventListener('keydown', e => { if(e.key==='Enter') goBook(); });
-$('#btnBorrow').onclick = () => { state.action="PŮJČKA"; show($('#step-action'), false); show($('#step-book'), true); };
-$('#btnReturn').onclick = () => { state.action="VRATKA";  show($('#step-action'), false); show($('#step-book'), true); };
-
-/* ===== Potvrzení ===== */
-function confirmModal(){
-  const verb = state.action==='VRATKA' ? 'VRÁCENA' : 'PŮJČENA';
-  $('#modalEmoji').textContent = state.action==='VRATKA' ? '✅' : '📦';
-  $('#confirmText').textContent = `Kniha „${state.book}" byla ${verb} na jméno ${state.name} (${state.clazz}).`;
-  show($('#confirmModal'), true);
-}
-
-$('#okBtn').onclick = () => {
-  show($('#confirmModal'), false);
-  saveAndQueue();
-  toast("Uloženo.");
-  resetUI();
-};
-
-/* ===== Uložení + fronta + odesílání ===== */
-function getAll(){ return JSON.parse(localStorage.getItem(STORAGE_ALL) || "[]"); }
-function setAll(a){ localStorage.setItem(STORAGE_ALL, JSON.stringify(a)); }
-function getQueue(){ return JSON.parse(localStorage.getItem(STORAGE_QUEUE) || "[]"); }
-function setQueue(a){ localStorage.setItem(STORAGE_QUEUE, JSON.stringify(a)); }
-
-function saveAndQueue(){
-  const rec = {
-    id: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
-    student: state.name,
-    clazz: state.clazz,
-    action: state.action,
-    book: state.book,
-    device: navigator.userAgent||""
-  };
-  const all = getAll(); all.push(rec); setAll(all);
-  const q = getQueue(); q.push(rec); setQueue(q);
-  sendQueue(); // pokus hned
-}
-
-async function sendQueue(){
-  const q = getQueue(); if(!q.length) return;
-  for(const rec of [...q]){  // kopie pole
-    try{
-      await sendOne(rec);
-      // úspěch → odstranit z fronty
-      const rest = getQueue().filter(x=>x.id!==rec.id); setQueue(rest);
-      debug(`Odesláno: ${rec.student} - ${rec.book}`);
-    }catch(e){
-      debug(`Odeslání selhalo: ${e.message}`);
-      // ponech v queue; zkusíme později
-    }
-  }
-}
-
-async function sendOne(rec){
-  if(!WEBAPP_URL || WEBAPP_URL.includes("PASTE_WEBAPP_URL_HERE")) throw new Error("Nenastaven WEBAPP_URL.");
-  const res = await fetch(WEBAPP_URL, {
-    method:"POST",
-    headers: { "Content-Type":"application/json" },
-    body: JSON.stringify({ secret: SHARED_SECRET, record: rec })
-  });
-  if(!res.ok) throw new Error("HTTP "+res.status);
-  const data = await res.json();
-  if(!data || !data.ok) throw new Error(data?.error || "Neznámá chyba serveru");
-}
-
-window.addEventListener('online', sendQueue);
-setInterval(sendQueue, 15000); // každých 15 s zkus doodeslat
-
-// Inicializace při načtení
-window.addEventListener('load', async () => {
-  debug("Aplikace načtena");
-  checkEnvironment();
-  await initializeCameras();
-  resetUI();
-  sendQueue(); // doodeslat hned po otevření
-});
-</script>
+        // Inicializace
+        document.addEventListener('DOMContentLoaded', function() {
+            // Skrýt admin linky na mobilních zařízeních při dotyku
+            document.addEventListener('touchstart', function() {
+                document.querySelector('.admin-link').style.opacity = '0.3';
+            });
+        });
+    </script>
 </body>
 </html>

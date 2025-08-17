@@ -1,0 +1,29 @@
+<!doctype html><meta charset="utf-8">
+<title>Camera test</title>
+<style>body{font-family:system-ui;padding:20px} pre{background:#111;color:#0f0;padding:10px;white-space:pre-wrap}</style>
+<h1>Camera test</h1>
+<button id="ask">Request camera (prompt)</button>
+<pre id="log"></pre>
+<script>
+const log = (...a)=>document.querySelector('#log').textContent += a.map(x=>typeof x==='string'?x:JSON.stringify(x,null,2)).join(' ')+'\n';
+(async()=>{
+  log('HTTPS:', location.protocol, ' Host:', location.host);
+  if(!navigator.mediaDevices){ log('navigator.mediaDevices NOT available'); return; }
+  try{
+    const list = await navigator.mediaDevices.enumerateDevices();
+    log('Devices:', list.map(d=>({kind:d.kind,label:d.label,id:d.deviceId})));
+  }catch(e){ log('enumerateDevices error:', e.name, e.message); }
+})();
+document.querySelector('#ask').onclick = async()=>{
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' } } });
+    log('getUserMedia: SUCCESS');
+    stream.getTracks().forEach(t=>t.stop());
+  }catch(e){
+    log('getUserMedia error:', e.name, e.message);
+    if(e.name==='NotAllowedError') log('Tip: Povolte kameru v oprávněních prohlížeče pro tuto stránku.');
+    if(e.name==='NotFoundError')  log('Tip: Zařízení nemá kameru / je odpojená.');
+    if(e.name==='NotReadableError') log('Tip: Kamera je používána jinou aplikací nebo OS blokuje přístup.');
+  }
+};
+</script>

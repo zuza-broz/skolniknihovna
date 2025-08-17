@@ -27,26 +27,16 @@ function selectAction(action) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Školní knihovna</title>
-    <!-- Nahradíme jsQR vlastní knihovnou -->
+    <!-- Použijeme spolehlivější QR knihovnu -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qr-scanner/1.4.2/qr-scanner.umd.min.js"></script>
     <script>
-        // Jednoduchá náhrada za jsQR - simulujeme čtení QR kódů
-        // V produkci by se použila jiná knihovna nebo API
-        let qrSimulator = {
-            isActive: false,
-            callback: null,
-            
-            // Simulace načtení QR - pro testování
-            simulateQR: function(text) {
-                if (this.callback && this.isActive) {
-                    this.callback(text);
-                    this.isActive = false;
-                }
-            }
-        };
-
-        // Test zda máme kameru
+        // Test zda se knihovna nahrála
         window.addEventListener('load', function() {
-            console.log('QR simulátor připraven - použijte ruční zadání pro testování');
+            if (typeof QrScanner !== 'undefined') {
+                console.log('✅ QR Scanner knihovna načtena úspěšně');
+            } else {
+                console.error('❌ QR Scanner knihovna se nenahrála');
+            }
         });
     </script>
     <style>
@@ -426,7 +416,6 @@ function selectAction(action) {
 
         function startCamera(videoId, scanCallback) {
             const video = document.getElementById(videoId);
-            const canvas = document.getElementById(videoId === 'video' ? 'canvas' : 'canvas2');
 
             // Přidáme debug informace
             const debugDiv = document.createElement('div');
@@ -437,67 +426,83 @@ function selectAction(action) {
             debugDiv.style.color = 'white';
             debugDiv.style.padding = '10px';
             debugDiv.style.borderRadius = '5px';
-            debugDiv.style.fontSize = '12px';
+            debugDiv.style.fontSize = '14px';
             debugDiv.style.zIndex = '1000';
-            debugDiv.innerHTML = 'Spouštím kameru...';
+            debugDiv.style.maxWidth = '90%';
+            debugDiv.innerHTML = '⏳ Spouštím QR scanner...';
             document.body.appendChild(debugDiv);
 
-            // Nastavíme QR simulátor
-            qrSimulator.isActive = true;
-            qrSimulator.callback = scanCallback;
-
-            navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: 'environment',
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                } 
-            }).then(mediaStream => {
-                stream = mediaStream;
-                video.srcObject = mediaStream;
-                isScanning = true;
-                debugDiv.innerHTML = 'Kamera spuštěna. Pro testování použijte "Zadat ručně"';
-                debugDiv.style.background = 'rgba(0,150,0,0.8)';
-                
-                video.onloadedmetadata = () => {
-                    video.play();
-                };
-
-                video.onplaying = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    debugDiv.innerHTML = `📷 Kamera aktivní (${canvas.width}x${canvas.height})<br>🔍 QR skenování připraveno<br>💡 Tip: Použijte "Zadat ručně" pro rychlé testování`;
-                };
-
-                // Automatické odstranění debug info po 5 sekundách
-                setTimeout(() => {
-                    if (document.body.contains(debugDiv)) {
-                        debugDiv.innerHTML = '📱 Nasměruj QR kód na kameru<br>nebo použij "Zadat ručně"';
-                    }
-                }, 3000);
-
-            }).catch(err => {
-                debugDiv.innerHTML = `❌ Chyba kamery: ${err.message}<br>💡 Použijte "Zadat ručně"`;
+            // Kontrola zda máme QR Scanner
+            if (typeof QrScanner === 'undefined') {
+                debugDiv.innerHTML = '❌ QR Scanner se nenahrál<br>💡 Použijte "Zadat ručně"';
                 debugDiv.style.background = 'rgba(200,0,0,0.8)';
+                return;
+            }
+
+            // Spuštění QR Scanner
+            const qrScanner = new QrScanner(video, result => {
+                // TOTO SE SPUSTÍ KDYŽ SE QR NAČTE!
+                debugDiv.innerHTML = `🎉 QR KÓD NAČTEN!<br><strong>${result.data}</strong>`;
+                debugDiv.style.background = 'rgba(0,200,0,0.9)';
+                debugDiv.style.fontSize = '16px';
+                debugDiv.style.fontWeight = 'bold';
+                
+                // Zastavit scanner
+                qrScanner.stop();
+                qrScanner.destroy();
+                
+                // Po 2 sekundách pokračovat
                 setTimeout(() => {
                     if (document.body.contains(debugDiv)) {
                         document.body.removeChild(debugDiv);
                     }
-                }, 5000);
+                    scanCallback(result.data);
+                }, 2000);
+                
+            }, {
+                returnDetailedScanResult: true,
+                highlightScanRegion: true,
+                highlightCodeOutline: true,
+            });
+
+            // Spustit scanner
+            qrScanner.start().then(() => {
+                isScanning = true;
+                debugDiv.innerHTML = '📱 QR Scanner aktivní<br>🔍 Nasměruj QR kód na kameru<br>📷 Kamera hledá QR kódy...';
+                debugDiv.style.background = 'rgba(0,100,200,0.8)';
+                
+                // Uložit referenci pro pozdější zastavení
+                window.currentQRScanner = qrScanner;
+                
+            }).catch(err => {
+                debugDiv.innerHTML = `❌ Chyba QR Scanner: ${err.message}<br>💡 Použijte "Zadat ručně"`;
+                debugDiv.style.background = 'rgba(200,0,0,0.8)';
             });
         }
 
         function stopScanning() {
             isScanning = false;
-            qrSimulator.isActive = false;
+            
+            // Zastavit QR Scanner pokud běží
+            if (window.currentQRScanner) {
+                try {
+                    window.currentQRScanner.stop();
+                    window.currentQRScanner.destroy();
+                    window.currentQRScanner = null;
+                } catch (e) {
+                    console.log('Scanner už byl zastaven');
+                }
+            }
+            
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
+            
             // Odstranit debug info pokud existuje
             const debugDivs = document.querySelectorAll('div[style*="position: absolute"]');
             debugDivs.forEach(div => {
-                if (div.innerHTML.includes('Skenuji') || div.innerHTML.includes('QR') || div.innerHTML.includes('Kamera')) {
+                if (div.innerHTML && (div.innerHTML.includes('Scanner') || div.innerHTML.includes('QR') || div.innerHTML.includes('Kamera'))) {
                     if (document.body.contains(div)) {
                         document.body.removeChild(div);
                     }

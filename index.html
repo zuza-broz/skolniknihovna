@@ -1,6 +1,26 @@
 function selectAction(action) {
+            console.log('selectAction volána s:', action);
             currentAction = action;
-            startBookScan();
+            
+            // Debug zpráva
+            const debugDiv = document.createElement('div');
+            debugDiv.style.position = 'fixed';
+            debugDiv.style.top = '50%';
+            debugDiv.style.left = '50%';
+            debugDiv.style.transform = 'translate(-50%, -50%)';
+            debugDiv.style.background = 'rgba(0,100,200,0.9)';
+            debugDiv.style.color = 'white';
+            debugDiv.style.padding = '20px';
+            debugDiv.style.borderRadius = '10px';
+            debugDiv.style.fontSize = '18px';
+            debugDiv.style.zIndex = '2000';
+            debugDiv.innerHTML = `Přepínám na skenování knihy...<br>Akce: ${action}`;
+            document.body.appendChild(debugDiv);
+            
+            setTimeout(() => {
+                document.body.removeChild(debugDiv);
+                startBookScan();
+            }, 1000);
         }    <!-- Admin panel -->
     <div id="adminPanel" class="modal">
         <div class="modal-content" style="max-width: 800px;">

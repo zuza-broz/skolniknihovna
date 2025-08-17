@@ -1,4 +1,24 @@
-<!DOCTYPE html>
+<!-- Admin panel -->
+    <div id="adminPanel" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <h2>Administrace knihovny</h2>
+            <div class="admin-content" id="adminContent"></div>
+            <button class="btn" onclick="clearAllData()">Vymazat všechna data</button>
+            <button class="btn" onclick="exportData()">Exportovat data</button>
+            <button class="btn" onclick="closeAdmin()">Zavřít</button>
+        </div>
+    </div>
+
+    <!-- Manual input modal -->
+    <div id="manualModal" class="modal">
+        <div class="modal-content">
+            <h2 id="manualTitle">Zadej údaje</h2>
+            <input type="text" id="manualInput" placeholder="Zadej text" onkeypress="if(event.key==='Enter') submitManual()">
+            <br>
+            <button class="btn" onclick="submitManual()">Potvrdit</button>
+            <button class="btn" onclick="closeManual()">Zrušit</button>
+        </div>
+    </div><!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
@@ -236,8 +256,13 @@
             <h1>Naskenuj své jméno</h1>
             <video id="video" autoplay muted playsinline></video>
             <canvas id="canvas" style="display: none;"></canvas>
-            <div class="big-button" onclick="goHome()" style="margin-top: 20px;">
-                <div>🏠 Zpět domů</div>
+            <div class="two-buttons" style="margin-top: 20px;">
+                <div class="big-button" onclick="manualStudentInput()">
+                    <div>✍️ Zadat ručně</div>
+                </div>
+                <div class="big-button" onclick="goHome()">
+                    <div>🏠 Zpět domů</div>
+                </div>
             </div>
         </div>
 
@@ -264,8 +289,13 @@
             <h1 id="actionTitle">Naskenuj knihu</h1>
             <video id="video2" autoplay muted playsinline></video>
             <canvas id="canvas2" style="display: none;"></canvas>
-            <div class="big-button" onclick="goBack()" style="margin-top: 20px;">
-                <div>↩️ Zpět</div>
+            <div class="two-buttons" style="margin-top: 20px;">
+                <div class="big-button" onclick="manualBookInput()">
+                    <div>✍️ Zadat ručně</div>
+                </div>
+                <div class="big-button" onclick="goBack()">
+                    <div>↩️ Zpět</div>
+                </div>
             </div>
         </div>
 
@@ -289,14 +319,14 @@
         </div>
     </div>
 
-    <!-- Admin panel -->
-    <div id="adminPanel" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
-            <h2>Administrace knihovny</h2>
-            <div class="admin-content" id="adminContent"></div>
-            <button class="btn" onclick="clearAllData()">Vymazat všechna data</button>
-            <button class="btn" onclick="exportData()">Exportovat data</button>
-            <button class="btn" onclick="closeAdmin()">Zavřít</button>
+    <!-- Manual input modal -->
+    <div id="manualModal" class="modal">
+        <div class="modal-content">
+            <h2 id="manualTitle">Zadej údaje</h2>
+            <input type="text" id="manualInput" placeholder="Zadej text" onkeypress="if(event.key==='Enter') submitManual()">
+            <br>
+            <button class="btn" onclick="submitManual()">Potvrdit</button>
+            <button class="btn" onclick="closeManual()">Zrušit</button>
         </div>
     </div>
 
@@ -306,6 +336,7 @@
         let currentAction = '';
         let isScanning = false;
         let stream = null;
+        let manualInputType = ''; // 'student' nebo 'book'
 
         // Lokální úložiště
         function saveRecord(student, book, action) {
@@ -402,15 +433,34 @@
 
                 function scanQR() {
                     if (isScanning && video.readyState === video.HAVE_ENOUGH_DATA) {
+                        // Vylepšené skenování - více pokusů s různými nastaveními
                         context.drawImage(video, 0, 0, canvas.width, canvas.height);
                         const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                        const code = jsQR(imageData.data, imageData.width, imageData.height);
                         
-                        if (code) {
+                        // Pokus 1: Standardní skenování
+                        let code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: "dontInvert",
+                        });
+                        
+                        // Pokus 2: S inverzí barev
+                        if (!code) {
+                            code = jsQR(imageData.data, imageData.width, imageData.height, {
+                                inversionAttempts: "onlyInvert",
+                            });
+                        }
+                        
+                        // Pokus 3: Zkusit obě varianty
+                        if (!code) {
+                            code = jsQR(imageData.data, imageData.width, imageData.height, {
+                                inversionAttempts: "attemptBoth",
+                            });
+                        }
+                        
+                        if (code && code.data && code.data.trim().length > 0) {
                             debugDiv.innerHTML = `QR nalezen: ${code.data}`;
                             setTimeout(() => {
                                 document.body.removeChild(debugDiv);
-                                scanCallback(code.data);
+                                scanCallback(code.data.trim());
                             }, 500);
                             return;
                         }
@@ -475,9 +525,53 @@
             showScreen('confirmScreen');
         }
 
-        function selectAction(action) {
-            currentAction = action;
-            startBookScan();
+        // Ruční zadávání
+        function manualStudentInput() {
+            stopScanning();
+            manualInputType = 'student';
+            document.getElementById('manualTitle').textContent = 'Zadej jméno a třídu';
+            document.getElementById('manualInput').placeholder = 'Např: Jan Novák 5.A';
+            document.getElementById('manualInput').value = '';
+            document.getElementById('manualModal').style.display = 'block';
+            document.getElementById('manualInput').focus();
+        }
+
+        function manualBookInput() {
+            stopScanning();
+            manualInputType = 'book';
+            document.getElementById('manualTitle').textContent = 'Zadej název knihy';
+            document.getElementById('manualInput').placeholder = 'Např: Harry Potter';
+            document.getElementById('manualInput').value = '';
+            document.getElementById('manualModal').style.display = 'block';
+            document.getElementById('manualInput').focus();
+        }
+
+        function submitManual() {
+            const input = document.getElementById('manualInput').value.trim();
+            if (!input) {
+                alert('Prosím, zadejte text!');
+                return;
+            }
+            
+            document.getElementById('manualModal').style.display = 'none';
+            
+            if (manualInputType === 'student') {
+                scanForStudent(input);
+            } else if (manualInputType === 'book') {
+                scanForBook(input);
+            }
+        }
+
+        function closeManual() {
+            document.getElementById('manualModal').style.display = 'none';
+            // Vrátit se na správnou obrazovku podle typu
+            if (manualInputType === 'student') {
+                showScreen('studentScanScreen');
+                startCamera('video', scanForStudent);
+            } else if (manualInputType === 'book') {
+                showScreen('bookScanScreen');
+                startCamera('video2', scanForBook);
+            }
         }
 
         // Administrace

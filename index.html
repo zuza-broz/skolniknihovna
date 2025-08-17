@@ -1,704 +1,492 @@
-function selectAction(action) {
-            console.log('Kliknuto na:', action);
-            currentAction = action;
-            startBookScan();
-        }    <!-- Admin panel -->
-    <div id="adminPanel" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
-            <h2>Administrace knihovny</h2>
-            <div class="admin-content" id="adminContent"></div>
-            <button class="btn" onclick="clearAllData()">Vymazat všechna data</button>
-            <button class="btn" onclick="exportData()">Exportovat data</button>
-            <button class="btn" onclick="closeAdmin()">Zavřít</button>
-        </div>
-    </div>
-
-    <!-- Manual input modal -->
-    <div id="manualModal" class="modal">
-        <div class="modal-content">
-            <h2 id="manualTitle">Zadej údaje</h2>
-            <input type="text" id="manualInput" placeholder="Zadej text" onkeypress="if(event.key==='Enter') submitManual()">
-            <br>
-            <button class="btn" onclick="submitManual()">Potvrdit</button>
-            <button class="btn" onclick="closeManual()">Zrušit</button>
-        </div>
-    </div><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="cs">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Školní knihovna</title>
-    <!-- Použijeme spolehlivější QR knihovnu -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qr-scanner/1.4.2/qr-scanner.umd.min.js"></script>
-    <script>
-        // Test zda se knihovna nahrála
-        window.addEventListener('load', function() {
-            if (typeof QrScanner !== 'undefined') {
-                console.log('✅ QR Scanner knihovna načtena úspěšně');
-            } else {
-                console.error('❌ QR Scanner knihovna se nenahrála');
-            }
-        });
-    </script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Školní knihovna</title>
 
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            overflow: hidden;
-        }
+  <!-- QR scanner (UMD build) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qr-scanner/1.4.2/qr-scanner.umd.min.js"></script>
+  <script>
+    // Kontrola načtení knihovny
+    window.addEventListener('load', () => {
+      if (typeof QrScanner !== 'undefined') {
+        console.log('✅ QR Scanner knihovna načtena úspěšně');
+      } else {
+        console.error('❌ QR Scanner knihovna se nenahrála');
+      }
+    });
+  </script>
 
-        .container {
-            text-align: center;
-            padding: 20px;
-            max-width: 600px;
-            width: 100%;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 30px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .screen {
-            display: none;
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        .screen.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .big-button {
-            background: rgba(255,255,255,0.2);
-            border: 3px solid rgba(255,255,255,0.3);
-            border-radius: 20px;
-            padding: 40px 30px;
-            margin: 20px;
-            font-size: 1.8rem;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            min-height: 150px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .big-button:hover {
-            background: rgba(255,255,255,0.3);
-            transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
-        }
-
-        .big-button:active {
-            transform: translateY(-2px);
-        }
-
-        .icon {
-            font-size: 4rem;
-            margin-bottom: 10px;
-        }
-
-        .two-buttons {
-            display: flex;
-            justify-content: space-around;
-            flex-wrap: wrap;
-        }
-
-        .two-buttons .big-button {
-            flex: 1;
-            min-width: 250px;
-            max-width: 280px;
-        }
-
-        #video {
-            width: 100%;
-            max-width: 400px;
-            height: 300px;
-            border-radius: 15px;
-            background: #333;
-            margin: 20px auto;
-            display: block;
-        }
-
-        .admin-link {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            color: rgba(255,255,255,0.6);
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-
-        .admin-link:hover {
-            color: white;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 1000;
-        }
-
-        .modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            color: #333;
-            padding: 30px;
-            border-radius: 15px;
-            max-width: 500px;
-            width: 90%;
-            text-align: center;
-        }
-
-        .modal-content h2 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-
-        input {
-            padding: 15px;
-            font-size: 1.2rem;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            margin: 10px;
-            width: 200px;
-            text-align: center;
-        }
-
-        .btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            margin: 10px;
-        }
-
-        .btn:hover {
-            background: #5a6fd8;
-        }
-
-        .admin-content {
-            max-height: 400px;
-            overflow-y: auto;
-            margin: 20px 0;
-        }
-
-        .record {
-            background: #f5f5f5;
-            margin: 10px 0;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: left;
-        }
-
-        .success {
-            background: #4CAF50;
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-            font-size: 1.3rem;
-        }
-
-        .error {
-            background: #f44336;
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-        }
-
-        @media (max-width: 768px) {
-            h1 { font-size: 2rem; }
-            .big-button { 
-                font-size: 1.5rem; 
-                padding: 30px 20px;
-                min-height: 120px;
-            }
-            .icon { font-size: 3rem; }
-            .two-buttons { flex-direction: column; align-items: center; }
-        }
-    </style>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; display: flex; justify-content: center; align-items: center;
+      color: white; overflow: hidden;
+    }
+    .container { text-align: center; padding: 20px; max-width: 600px; width: 100%; }
+    h1 { font-size: 2.5rem; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+    .screen { display: none; animation: fadeIn 0.5s ease-in; }
+    .screen.active { display: block; }
+    @keyframes fadeIn { from{opacity:0; transform:translateY(20px)} to{opacity:1; transform:translateY(0)} }
+    .big-button {
+      background: rgba(255,255,255,0.2); border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 20px; padding: 40px 30px; margin: 20px; font-size: 1.8rem; color: white;
+      cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1); min-height: 150px; display: flex;
+      flex-direction: column; justify-content: center; align-items: center; gap: 15px;
+    }
+    .big-button:hover { background: rgba(255,255,255,0.3); transform: translateY(-5px); box-shadow: 0 12px 40px rgba(0,0,0,0.2); }
+    .big-button:active { transform: translateY(-2px); }
+    .icon { font-size: 4rem; margin-bottom: 10px; }
+    .two-buttons { display: flex; justify-content: space-around; flex-wrap: wrap; }
+    .two-buttons .big-button { flex: 1; min-width: 250px; max-width: 280px; }
+    #video, #video2 { width: 100%; max-width: 400px; height: 300px; border-radius: 15px; background: #333; margin: 20px auto; display: block; }
+    .admin-link { position: fixed; top: 20px; right: 20px; color: rgba(255,255,255,0.6); text-decoration: none; font-size: 0.9rem; }
+    .admin-link:hover { color: white; }
+    .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index:1000; }
+    .modal-content {
+      position: absolute; top:50%; left:50%; transform: translate(-50%, -50%);
+      background:white; color:#333; padding:30px; border-radius:15px; max-width:800px; width:90%; text-align:center;
+    }
+    .modal-content h2 { color:#333; margin-bottom:20px; }
+    input {
+      padding: 15px; font-size: 1.2rem; border: 2px solid #ddd; border-radius: 8px; margin: 10px;
+      width: 200px; text-align: center;
+    }
+    .btn { background:#667eea; color:white; border:none; padding:15px 30px; border-radius:8px; font-size:1.1rem; cursor:pointer; margin:10px; }
+    .btn:hover { background:#5a6fd8; }
+    .admin-content { max-height: 400px; overflow-y: auto; margin: 20px 0; text-align:left; }
+    .record { background:#f5f5f5; margin:10px 0; padding:15px; border-radius:8px; text-align:left; }
+    .success { background:#4CAF50; color:white; padding:20px; border-radius:10px; margin:20px 0; font-size:1.3rem; }
+    .error { background:#f44336; color:white; padding:20px; border-radius:10px; margin:20px 0; }
+    @media (max-width: 768px) {
+      h1 { font-size: 2rem; }
+      .big-button { font-size: 1.5rem; padding: 30px 20px; min-height: 120px; }
+      .icon { font-size: 3rem; }
+      .two-buttons { flex-direction: column; align-items: center; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <a href="#" class="admin-link" onclick="showAdminLogin()">Administrace</a>
-        
-        <!-- Úvodní obrazovka -->
-        <div id="homeScreen" class="screen active">
-            <h1>📚 Školní knihovna</h1>
-            <div class="big-button" onclick="startStudentScan()">
-                <div class="icon">👤</div>
-                <div>Naskenuj svůj QR kód</div>
-            </div>
-        </div>
+  <div class="container">
+    <a href="#" class="admin-link" onclick="showAdminLogin()">Administrace</a>
 
-        <!-- Skenování žáka -->
-        <div id="studentScanScreen" class="screen">
-            <h1>Naskenuj své jméno</h1>
-            <div style="position: relative;">
-                <video id="video" autoplay muted playsinline></video>
-                <div id="scanOverlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                     border: 3px solid #00ff00; width: 200px; height: 200px; border-radius: 10px;
-                     box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);"></div>
-            </div>
-            <canvas id="canvas" style="display: none;"></canvas>
-            <div class="two-buttons" style="margin-top: 20px;">
-                <div class="big-button" onclick="manualStudentInput()">
-                    <div>✍️ Zadat ručně</div>
-                </div>
-                <div class="big-button" onclick="goHome()">
-                    <div>🏠 Zpět domů</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Výběr akce -->
-        <div id="actionScreen" class="screen">
-            <h1 id="studentName">Ahoj, žáku!</h1>
-            <div class="two-buttons">
-                <div class="big-button" onclick="selectAction('vypujcka')">
-                    <div class="icon">🏠</div>
-                    <div>Výpůjčka</div>
-                </div>
-                <div class="big-button" onclick="selectAction('vratka')">
-                    <div class="icon">🏫</div>
-                    <div>Vratka</div>
-                </div>
-            </div>
-            <div class="big-button" onclick="goHome()" style="margin-top: 20px;">
-                <div>🏠 Zpět domů</div>
-            </div>
-        </div>
-
-        <!-- Skenování knihy -->
-        <div id="bookScanScreen" class="screen">
-            <h1 id="actionTitle">Naskenuj knihu</h1>
-            <div style="position: relative;">
-                <video id="video2" autoplay muted playsinline></video>
-                <div id="scanOverlay2" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-                     border: 3px solid #00ff00; width: 200px; height: 200px; border-radius: 10px;
-                     box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);"></div>
-            </div>
-            <canvas id="canvas2" style="display: none;"></canvas>
-            <div class="two-buttons" style="margin-top: 20px;">
-                <div class="big-button" onclick="manualBookInput()">
-                    <div>✍️ Zadat ručně</div>
-                </div>
-                <div class="big-button" onclick="goBack()">
-                    <div>↩️ Zpět</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Potvrzení -->
-        <div id="confirmScreen" class="screen">
-            <div id="confirmMessage" class="success"></div>
-            <div class="big-button" onclick="goHome()">
-                <div>✅ OK</div>
-            </div>
-        </div>
+    <!-- Úvodní obrazovka -->
+    <div id="homeScreen" class="screen active">
+      <h1>📚 Školní knihovna</h1>
+      <div class="big-button" onclick="startStudentScan()">
+        <div class="icon">👤</div>
+        <div>Naskenuj svůj QR kód</div>
+      </div>
     </div>
 
-    <!-- Admin modal -->
-    <div id="adminModal" class="modal">
-        <div class="modal-content">
-            <h2>Administrace</h2>
-            <input type="password" id="adminPassword" placeholder="Heslo" onkeypress="if(event.key==='Enter') adminLogin()">
-            <br>
-            <button class="btn" onclick="adminLogin()">Přihlásit</button>
-            <button class="btn" onclick="closeAdmin()">Zavřít</button>
-        </div>
+    <!-- Skenování žáka -->
+    <div id="studentScanScreen" class="screen">
+      <h1>Naskenuj své jméno</h1>
+      <div style="position: relative;">
+        <video id="video" autoplay muted playsinline></video>
+        <div id="scanOverlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); border:3px solid #00ff00; width:200px; height:200px; border-radius:10px; box-shadow:0 0 0 9999px rgba(0,0,0,0.3);"></div>
+      </div>
+      <canvas id="canvas" style="display:none;"></canvas>
+      <div class="two-buttons" style="margin-top: 20px;">
+        <div class="big-button" onclick="manualStudentInput()"><div>✍️ Zadat ručně</div></div>
+        <div class="big-button" onclick="goHome()"><div>🏠 Zpět domů</div></div>
+      </div>
     </div>
 
-    <!-- Manual input modal -->
-    <div id="manualModal" class="modal">
-        <div class="modal-content">
-            <h2 id="manualTitle">Zadej údaje</h2>
-            <input type="text" id="manualInput" placeholder="Zadej text" onkeypress="if(event.key==='Enter') submitManual()">
-            <br>
-            <button class="btn" onclick="submitManual()">Potvrdit</button>
-            <button class="btn" onclick="closeManual()">Zrušit</button>
+    <!-- Výběr akce -->
+    <div id="actionScreen" class="screen">
+      <h1 id="studentName">Ahoj, žáku!</h1>
+      <div class="two-buttons">
+        <div class="big-button" onclick="selectAction('vypujcka')">
+          <div class="icon">🏠</div>
+          <div>Výpůjčka</div>
         </div>
+        <div class="big-button" onclick="selectAction('vratka')">
+          <div class="icon">🏫</div>
+          <div>Vratka</div>
+        </div>
+      </div>
+      <div class="big-button" onclick="goHome()" style="margin-top: 20px;">
+        <div>🏠 Zpět domů</div>
+      </div>
     </div>
 
-    <script>
-        // Globální proměnné
-        let currentStudent = '';
-        let currentAction = '';
-        let isScanning = false;
-        let stream = null;
-        let manualInputType = ''; // 'student' nebo 'book'
+    <!-- Skenování knihy -->
+    <div id="bookScanScreen" class="screen">
+      <h1 id="actionTitle">Naskenuj knihu</h1>
+      <div style="position: relative;">
+        <video id="video2" autoplay muted playsinline></video>
+        <div id="scanOverlay2" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); border:3px solid #00ff00; width:200px; height:200px; border-radius:10px; box-shadow:0 0 0 9999px rgba(0,0,0,0.3);"></div>
+      </div>
+      <canvas id="canvas2" style="display:none;"></canvas>
+      <div class="two-buttons" style="margin-top: 20px;">
+        <div class="big-button" onclick="manualBookInput()"><div>✍️ Zadat ručně</div></div>
+        <div class="big-button" onclick="goBack()"><div>↩️ Zpět</div></div>
+      </div>
+    </div>
 
-        // Lokální úložiště
-        function saveRecord(student, book, action) {
-            const records = JSON.parse(localStorage.getItem('libraryRecords') || '[]');
-            const record = {
-                id: Date.now(),
-                student: student,
-                book: book,
-                action: action,
-                timestamp: new Date().toLocaleString('cs-CZ')
-            };
-            records.push(record);
-            localStorage.setItem('libraryRecords', JSON.stringify(records));
-            return record;
+    <!-- Potvrzení -->
+    <div id="confirmScreen" class="screen">
+      <div id="confirmMessage" class="success"></div>
+      <div class="big-button" onclick="goHome()"><div>✅ OK</div></div>
+    </div>
+  </div>
+
+  <!-- Admin přihlášení -->
+  <div id="adminModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+      <h2>Administrace</h2>
+      <input type="password" id="adminPassword" placeholder="Heslo" onkeypress="if(event.key==='Enter') adminLogin()">
+      <br>
+      <button class="btn" onclick="adminLogin()">Přihlásit</button>
+      <button class="btn" onclick="closeAdmin()">Zavřít</button>
+    </div>
+  </div>
+
+  <!-- Admin panel -->
+  <div id="adminPanel" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+      <h2>Administrace knihovny</h2>
+      <div class="admin-content" id="adminContent"></div>
+      <button class="btn" onclick="clearAllData()">Vymazat všechna data</button>
+      <button class="btn" onclick="exportData()">Exportovat data</button>
+      <button class="btn" onclick="closeAdmin()">Zavřít</button>
+    </div>
+  </div>
+
+  <!-- Ruční zadání (jediný výskyt) -->
+  <div id="manualModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+      <h2 id="manualTitle">Zadej údaje</h2>
+      <input type="text" id="manualInput" placeholder="Zadej text" onkeypress="if(event.key==='Enter') submitManual()">
+      <br>
+      <button class="btn" onclick="submitManual()">Potvrdit</button>
+      <button class="btn" onclick="closeManual()">Zrušit</button>
+    </div>
+  </div>
+
+  <script>
+    // =========================
+    // Globální proměnné
+    // =========================
+    let currentStudent = '';
+    let currentAction  = '';
+    let isScanning     = false;
+
+    // =========================
+    // Úložiště
+    // =========================
+    function saveRecord(student, book, action) {
+      const records = JSON.parse(localStorage.getItem('libraryRecords') || '[]');
+      const record = {
+        id: Date.now(),
+        student,
+        book,
+        action,
+        timestamp: new Date().toLocaleString('cs-CZ')
+      };
+      records.push(record);
+      localStorage.setItem('libraryRecords', JSON.stringify(records));
+      return record;
+    }
+
+    function getRecords() {
+      return JSON.parse(localStorage.getItem('libraryRecords') || '[]');
+    }
+
+    // =========================
+    // Navigace
+    // =========================
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function goHome() {
+      stopScanning();
+      currentStudent = '';
+      currentAction  = '';
+      showScreen('homeScreen');
+    }
+
+    function goBack() {
+      stopScanning();
+      showScreen('actionScreen');
+    }
+
+    // =========================
+    // QR skenování
+    // =========================
+    function startStudentScan() {
+      showScreen('studentScanScreen');
+      startCamera('video', scanForStudent);
+    }
+
+    // !!! důležité: volá se po kliknutí na Výpůjčka/Vratka
+    window.selectAction = function(action) {
+      console.log('Kliknuto na:', action);
+      currentAction = action;
+      startBookScan();
+    };
+
+    function startBookScan() {
+      console.log('startBookScan volána, currentAction:', currentAction);
+      stopScanning();
+      showScreen('bookScanScreen');
+
+      const title = currentAction === 'vypujcka'
+        ? 'Naskenuj knihu k výpůjčce'
+        : 'Naskenuj knihu k vrácení';
+      document.getElementById('actionTitle').textContent = title;
+
+      setTimeout(() => {
+        console.log('Spouštím kameru pro knihu...');
+        startCamera('video2', scanForBook);
+      }, 200);
+    }
+
+    function startCamera(videoId, scanCallback) {
+      const video = document.getElementById(videoId);
+      if (!video) { console.error(`Video element ${videoId} neexistuje!`); return; }
+
+      // Debug badge
+      const debugDiv = document.createElement('div');
+      debugDiv.id = 'qr-debug-' + videoId;
+      debugDiv.style.position = 'absolute';
+      debugDiv.style.top = '10px';
+      debugDiv.style.left = '10px';
+      debugDiv.style.background = 'rgba(0,0,0,0.7)';
+      debugDiv.style.color = 'white';
+      debugDiv.style.padding = '10px';
+      debugDiv.style.borderRadius = '5px';
+      debugDiv.style.fontSize = '14px';
+      debugDiv.style.zIndex = '1000';
+      debugDiv.style.maxWidth = '90%';
+      debugDiv.innerHTML = `⏳ Spouštím QR scanner pro ${videoId}...`;
+      document.body.appendChild(debugDiv);
+
+      if (typeof QrScanner === 'undefined') {
+        debugDiv.innerHTML = '❌ QR Scanner se nenahrál<br>💡 Použijte "Zadat ručně"';
+        debugDiv.style.background = 'rgba(200,0,0,0.8)';
+        return;
+      }
+
+      const qrScanner = new QrScanner(
+        video,
+        (result) => {
+          // QR načten
+          debugDiv.innerHTML = `🎉 QR KÓD NAČTEN!<br><strong>${result.data}</strong>`;
+          debugDiv.style.background = 'rgba(0,200,0,0.9)';
+          debugDiv.style.fontSize = '16px';
+          debugDiv.style.fontWeight = 'bold';
+
+          qrScanner.stop();
+          qrScanner.destroy();
+
+          // Smazat debug a pokračovat
+          setTimeout(() => {
+            if (document.body.contains(debugDiv)) document.body.removeChild(debugDiv);
+            scanCallback(result.data);
+          }, 800);
+        },
+        {
+          returnDetailedScanResult: true,
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
         }
+      );
 
-        function getRecords() {
-            return JSON.parse(localStorage.getItem('libraryRecords') || '[]');
+      qrScanner.start().then(() => {
+        isScanning = true;
+        debugDiv.innerHTML = `📱 QR Scanner aktivní pro ${videoId}<br>🔍 Nasměruj QR kód na kameru<br>📷 Kamera hledá QR kódy...`;
+        debugDiv.style.background = 'rgba(0,100,200,0.8)';
+
+        // uložit referenci
+        if (videoId === 'video') {
+          window.currentQRScanner = qrScanner;
+        } else {
+          window.currentQRScanner2 = qrScanner;
         }
+      }).catch(err => {
+        debugDiv.innerHTML = `❌ Chyba QR Scanner: ${err.message}<br>💡 Použijte "Zadat ručně"`;
+        debugDiv.style.background = 'rgba(200,0,0,0.8)';
+        console.error('QR Scanner chyba:', err);
+      });
+    }
 
-        // Navigace
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('active');
-            });
-            document.getElementById(screenId).classList.add('active');
-        }
+    function stopScanning() {
+      isScanning = false;
 
-        function goHome() {
-            stopScanning();
-            currentStudent = '';
-            currentAction = '';
-            showScreen('homeScreen');
-        }
+      // Zastavit oba scannery
+      if (window.currentQRScanner) {
+        try { window.currentQRScanner.stop(); window.currentQRScanner.destroy(); } catch(e){}
+        window.currentQRScanner = null;
+      }
+      if (window.currentQRScanner2) {
+        try { window.currentQRScanner2.stop(); window.currentQRScanner2.destroy(); } catch(e){}
+        window.currentQRScanner2 = null;
+      }
 
-        function goBack() {
-            stopScanning();
-            showScreen('actionScreen');
-        }
+      // Smazat debug badge
+      document.querySelectorAll('div[id*="qr-debug"]').forEach(div => {
+        if (document.body.contains(div)) document.body.removeChild(div);
+      });
+    }
 
-        // QR skenování
-        function startStudentScan() {
-            showScreen('studentScanScreen');
-            startCamera('video', scanForStudent);
-        }
+    function scanForStudent(qrData) {
+      stopScanning();
+      currentStudent = String(qrData || '').trim();
+      document.getElementById('studentName').textContent = `Ahoj, ${currentStudent}!`;
+      showScreen('actionScreen');
+    }
 
-        function startBookScan() {
-            console.log('startBookScan volána, currentAction:', currentAction);
-            
-            // Zastavit předchozí skenování
-            stopScanning();
-            
-            // Přepnout na obrazovku skenování knihy
-            showScreen('bookScanScreen');
-            
-            // Nastavit nadpis podle akce
-            const title = currentAction === 'vypujcka' ? 'Naskenuj knihu k výpůjčce' : 'Naskenuj knihu k vrácení';
-            document.getElementById('actionTitle').textContent = title;
-            
-            // Malé zpoždění pro správné načtení
-            setTimeout(() => {
-                console.log('Spouštím kameru pro knihu...');
-                startCamera('video2', scanForBook);
-            }, 200);
-        }
+    function scanForBook(qrData) {
+      stopScanning();
+      const bookName = String(qrData || '').trim();
 
-        function startCamera(videoId, scanCallback) {
-            const video = document.getElementById(videoId);
-            
-            // Kontrola zda video element existuje
-            if (!video) {
-                console.error(`Video element ${videoId} neexistuje!`);
-                return;
-            }
+      // Uložit záznam
+      saveRecord(currentStudent, bookName, currentAction);
 
-            // Přidáme debug informace
-            const debugDiv = document.createElement('div');
-            debugDiv.id = 'qr-debug-' + videoId;
-            debugDiv.style.position = 'absolute';
-            debugDiv.style.top = '10px';
-            debugDiv.style.left = '10px';
-            debugDiv.style.background = 'rgba(0,0,0,0.7)';
-            debugDiv.style.color = 'white';
-            debugDiv.style.padding = '10px';
-            debugDiv.style.borderRadius = '5px';
-            debugDiv.style.fontSize = '14px';
-            debugDiv.style.zIndex = '1000';
-            debugDiv.style.maxWidth = '90%';
-            debugDiv.innerHTML = `⏳ Spouštím QR scanner pro ${videoId}...`;
-            document.body.appendChild(debugDiv);
+      // Potvrzení
+      const actionText = currentAction === 'vypujcka' ? 'VYPŮJČENA' : 'VRÁCENA';
+      document.getElementById('confirmMessage').innerHTML =
+        `✅ Kniha "<strong>${bookName}</strong>" byla <strong>${actionText}</strong> na jméno <strong>${currentStudent}</strong>.`;
 
-            // Kontrola zda máme QR Scanner
-            if (typeof QrScanner === 'undefined') {
-                debugDiv.innerHTML = '❌ QR Scanner se nenahrál<br>💡 Použijte "Zadat ručně"';
-                debugDiv.style.background = 'rgba(200,0,0,0.8)';
-                return;
-            }
+      showScreen('confirmScreen');
+    }
 
-            // Spuštění QR Scanner
-            const qrScanner = new QrScanner(video, result => {
-                // TOTO SE SPUSTÍ KDYŽ SE QR NAČTE!
-                debugDiv.innerHTML = `🎉 QR KÓD NAČTEN!<br><strong>${result.data}</strong>`;
-                debugDiv.style.background = 'rgba(0,200,0,0.9)';
-                debugDiv.style.fontSize = '16px';
-                debugDiv.style.fontWeight = 'bold';
-                
-                // Zastavit scanner
-                qrScanner.stop();
-                qrScanner.destroy();
-                
-                // Uložit referenci
-                if (videoId === 'video') {
-                    window.currentQRScanner = null;
-                } else {
-                    window.currentQRScanner2 = null;
-                }
-                
-                // Po 2 sekundách pokračovat
-                setTimeout(() => {
-                    if (document.body.contains(debugDiv)) {
-                        document.body.removeChild(debugDiv);
-                    }
-                    scanCallback(result.data);
-                }, 2000);
-                
-            }, {
-                returnDetailedScanResult: true,
-                highlightScanRegion: true,
-                highlightCodeOutline: true,
-            });
+    // =========================
+    // Ruční zadávání
+    // =========================
+    let manualInputType = ''; // 'student' | 'book'
 
-            // Spustit scanner
-            qrScanner.start().then(() => {
-                isScanning = true;
-                debugDiv.innerHTML = `📱 QR Scanner aktivní pro ${videoId}<br>🔍 Nasměruj QR kód na kameru<br>📷 Kamera hledá QR kódy...`;
-                debugDiv.style.background = 'rgba(0,100,200,0.8)';
-                
-                // Uložit referenci pro pozdější zastavení
-                if (videoId === 'video') {
-                    window.currentQRScanner = qrScanner;
-                } else {
-                    window.currentQRScanner2 = qrScanner;
-                }
-                
-            }).catch(err => {
-                debugDiv.innerHTML = `❌ Chyba QR Scanner: ${err.message}<br>💡 Použijte "Zadat ručně"`;
-                debugDiv.style.background = 'rgba(200,0,0,0.8)';
-                console.error('QR Scanner chyba:', err);
-            });
-        }
+    function manualStudentInput() {
+      stopScanning();
+      manualInputType = 'student';
+      document.getElementById('manualTitle').textContent = 'Zadej jméno a třídu';
+      document.getElementById('manualInput').placeholder = 'Např: Jan Novák 5.A';
+      document.getElementById('manualInput').value = '';
+      document.getElementById('manualModal').style.display = 'block';
+      document.getElementById('manualInput').focus();
+    }
 
-        function stopScanning() {
-            isScanning = false;
-            
-            // Zastavit oba QR Scanner pokud běží
-            if (window.currentQRScanner) {
-                try {
-                    window.currentQRScanner.stop();
-                    window.currentQRScanner.destroy();
-                    window.currentQRScanner = null;
-                } catch (e) {
-                    console.log('Scanner 1 už byl zastaven');
-                }
-            }
-            
-            if (window.currentQRScanner2) {
-                try {
-                    window.currentQRScanner2.stop();
-                    window.currentQRScanner2.destroy();
-                    window.currentQRScanner2 = null;
-                } catch (e) {
-                    console.log('Scanner 2 už byl zastaven');
-                }
-            }
-            
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            
-            // Odstranit všechny debug info
-            const debugDivs = document.querySelectorAll('div[id*="qr-debug"]');
-            debugDivs.forEach(div => {
-                if (document.body.contains(div)) {
-                    document.body.removeChild(div);
-                }
-            });
-        }
+    function manualBookInput() {
+      stopScanning();
+      manualInputType = 'book';
+      document.getElementById('manualTitle').textContent = 'Zadej název knihy';
+      document.getElementById('manualInput').placeholder = 'Např: Harry Potter';
+      document.getElementById('manualInput').value = '';
+      document.getElementById('manualModal').style.display = 'block';
+      document.getElementById('manualInput').focus();
+    }
 
-        function scanForStudent(qrData) {
-            stopScanning();
-            currentStudent = qrData.trim();
-            document.getElementById('studentName').textContent = `Ahoj, ${currentStudent}!`;
-            showScreen('actionScreen');
-        }
+    function submitManual() {
+      const input = document.getElementById('manualInput').value.trim();
+      if (!input) { alert('Prosím, zadejte text!'); return; }
+      document.getElementById('manualModal').style.display = 'none';
 
-        function scanForBook(qrData) {
-            stopScanning();
-            const bookName = qrData.trim();
-            
-            // Uložit záznam
-            const record = saveRecord(currentStudent, bookName, currentAction);
-            
-            // Zobrazit potvrzení
-            const actionText = currentAction === 'vypujcka' ? 'VYPŮJČENA' : 'VRÁCENA';
-            document.getElementById('confirmMessage').innerHTML = 
-                `✅ Kniha "${bookName}" byla <strong>${actionText}</strong> na jméno ${currentStudent}.`;
-            
-            showScreen('confirmScreen');
-        }
+      if (manualInputType === 'student') {
+        scanForStudent(input);
+      } else if (manualInputType === 'book') {
+        scanForBook(input);
+      }
+    }
 
-        // Ruční zadávání
-        function manualStudentInput() {
-            stopScanning();
-            manualInputType = 'student';
-            document.getElementById('manualTitle').textContent = 'Zadej jméno a třídu';
-            document.getElementById('manualInput').placeholder = 'Např: Jan Novák 5.A';
-            document.getElementById('manualInput').value = '';
-            document.getElementById('manualModal').style.display = 'block';
-            document.getElementById('manualInput').focus();
-        }
+    function closeManual() {
+      document.getElementById('manualModal').style.display = 'none';
+      // Vrátit správnou obrazovku a znovu spustit scanner
+      if (manualInputType === 'student') {
+        showScreen('studentScanScreen');
+        startCamera('video', scanForStudent);
+      } else if (manualInputType === 'book') {
+        showScreen('bookScanScreen');
+        startCamera('video2', scanForBook);
+      }
+    }
 
-        function manualBookInput() {
-            stopScanning();
-            manualInputType = 'book';
-            document.getElementById('manualTitle').textContent = 'Zadej název knihy';
-            document.getElementById('manualInput').placeholder = 'Např: Harry Potter';
-            document.getElementById('manualInput').value = '';
-            document.getElementById('manualModal').style.display = 'block';
-            document.getElementById('manualInput').focus();
-        }
+    // =========================
+    // Administrace
+    // =========================
+    function showAdminLogin() {
+      document.getElementById('adminModal').style.display = 'block';
+      document.getElementById('adminPassword').value = '';
+      document.getElementById('adminPassword').focus();
+    }
 
-        function submitManual() {
-            const input = document.getElementById('manualInput').value.trim();
-            if (!input) {
-                alert('Prosím, zadejte text!');
-                return;
-            }
-            
-            document.getElementById('manualModal').style.display = 'none';
-            
-            if (manualInputType === 'student') {
-                scanForStudent(input);
-            } else if (manualInputType === 'book') {
-                scanForBook(input);
-            }
-        }
+    function adminLogin() {
+      const password = document.getElementById('adminPassword').value;
+      if (password === 'topol') {
+        document.getElementById('adminModal').style.display = 'none';
+        showAdminPanel();
+      } else {
+        alert('Nesprávné heslo!');
+      }
+    }
 
-        function closeManual() {
-            document.getElementById('manualModal').style.display = 'none';
-            // Vrátit se na správnou obrazovku podle typu
-            if (manualInputType === 'student') {
-                showScreen('studentScanScreen');
-                startCamera('video', scanForStudent);
-            } else if (manualInputType === 'book') {
-                showScreen('bookScanScreen');
-                startCamera('video2', scanForBook);
-            }
-        }
+    function showAdminPanel() {
+      const records = getRecords();
+      const content = document.getElementById('adminContent');
 
-        // Administrace
-        function showAdminLogin() {
-            document.getElementById('adminModal').style.display = 'block';
-            document.getElementById('adminPassword').value = '';
-            document.getElementById('adminPassword').focus();
-        }
+      if (records.length === 0) {
+        content.innerHTML = '<p>Zatím žádné záznamy.</p>';
+      } else {
+        content.innerHTML = records.map(r => `
+          <div class="record">
+            <strong>${r.timestamp}</strong><br>
+            Žák: ${r.student}<br>
+            Kniha: ${r.book}<br>
+            Akce: ${r.action.toUpperCase()}
+          </div>
+        `).reverse().join('');
+      }
+      document.getElementById('adminPanel').style.display = 'block';
+    }
 
-        function adminLogin() {
-            const password = document.getElementById('adminPassword').value;
-            if (password === 'topol') {
-                document.getElementById('adminModal').style.display = 'none';
-                showAdminPanel();
-            } else {
-                alert('Nesprávné heslo!');
-            }
-        }
+    function clearAllData() {
+      if (confirm('Opravdu chcete vymazat všechna data?')) {
+        localStorage.removeItem('libraryRecords');
+        alert('Všechna data byla vymazána.');
+        showAdminPanel();
+      }
+    }
 
-        function showAdminPanel() {
-            const records = getRecords();
-            const content = document.getElementById('adminContent');
-            
-            if (records.length === 0) {
-                content.innerHTML = '<p>Zatím žádné záznamy.</p>';
-            } else {
-                content.innerHTML = records.map(record => `
-                    <div class="record">
-                        <strong>${record.timestamp}</strong><br>
-                        Žák: ${record.student}<br>
-                        Kniha: ${record.book}<br>
-                        Akce: ${record.action.toUpperCase()}
-                    </div>
-                `).reverse().join('');
-            }
-            
-            document.getElementById('adminPanel').style.display = 'block';
-        }
+    function exportData() {
+      const records = getRecords();
+      if (records.length === 0) { alert('Žádná data k exportu.'); return; }
 
-        function clearAllData() {
-            if (confirm('Opravdu chcete vymazat všechna data?')) {
-                localStorage.removeItem('libraryRecords');
-                alert('Všechna data byla vymazána.');
-                showAdminPanel();
-            }
-        }
+      const csv = 'Datum,Čas,Žák,Kniha,Akce\n' + records.map(r => {
+        // cs-CZ toLocaleString: "18. 8. 2025 14:05:00"
+        const parts = r.timestamp.split(' ');
+        const datum = parts.slice(0, parts.length - 1).join(' '); // zachyť datum i případné mezerování
+        const cas = parts[parts.length - 1] || '';
+        return `${datum},${cas},${r.student},${r.book},${r.action}`;
+      }).join('\n');
 
-        function exportData() {
-            const records = getRecords();
-            if (records.length === 0) {
-                alert('Žádná data k exportu.');
-                return;
-            }
-            
-            const csv = 'Datum,Čas,Žák,Kniha,Akce\n' + 
-                records.map(r => {
-                    const [datum, cas] = r.timestamp.split(' ');
-                    return `${datum},${cas},${r.student},${r.book},${r.action}`;
-                }).join('\n');
-            
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `knihovna_export_${new Date().toISOString().split('T')[0]}.csv`;
-            link.click();
-        }
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `knihovna_export_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    }
 
-        function closeAdmin() {
-            document.getElementById('adminModal').style.display = 'none';
-            document.getElementById('adminPanel').style.display = 'none';
-        }
+    function closeAdmin() {
+      document.getElementById('adminModal').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'none';
+    }
 
-        // Inicializace
-        document.addEventListener('DOMContentLoaded', function() {
-            // Skrýt admin linky na mobilních zařízeních při dotyku
-            document.addEventListener('touchstart', function() {
-                document.querySelector('.admin-link').style.opacity = '0.3';
-            });
-        });
-    </script>
+    // =========================
+    // Init
+    // =========================
+    document.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener('touchstart', () => {
+        const link = document.querySelector('.admin-link');
+        if (link) link.style.opacity = '0.3';
+      });
+    });
+  </script>
 </body>
 </html>

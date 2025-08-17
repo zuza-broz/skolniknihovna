@@ -411,14 +411,25 @@ function selectAction(action) {
             showScreen('bookScanScreen');
             document.getElementById('actionTitle').textContent = 
                 currentAction === 'vypujcka' ? 'Naskenuj knihu k výpůjčce' : 'Naskenuj knihu k vrácení';
-            startCamera('video2', scanForBook);
+            
+            // Malé zpoždění pro správné načtení video elementu
+            setTimeout(() => {
+                startCamera('video2', scanForBook);
+            }, 100);
         }
 
         function startCamera(videoId, scanCallback) {
             const video = document.getElementById(videoId);
+            
+            // Kontrola zda video element existuje
+            if (!video) {
+                console.error(`Video element ${videoId} neexistuje!`);
+                return;
+            }
 
             // Přidáme debug informace
             const debugDiv = document.createElement('div');
+            debugDiv.id = 'qr-debug-' + videoId;
             debugDiv.style.position = 'absolute';
             debugDiv.style.top = '10px';
             debugDiv.style.left = '10px';
@@ -429,7 +440,7 @@ function selectAction(action) {
             debugDiv.style.fontSize = '14px';
             debugDiv.style.zIndex = '1000';
             debugDiv.style.maxWidth = '90%';
-            debugDiv.innerHTML = '⏳ Spouštím QR scanner...';
+            debugDiv.innerHTML = `⏳ Spouštím QR scanner pro ${videoId}...`;
             document.body.appendChild(debugDiv);
 
             // Kontrola zda máme QR Scanner
@@ -451,6 +462,13 @@ function selectAction(action) {
                 qrScanner.stop();
                 qrScanner.destroy();
                 
+                // Uložit referenci
+                if (videoId === 'video') {
+                    window.currentQRScanner = null;
+                } else {
+                    window.currentQRScanner2 = null;
+                }
+                
                 // Po 2 sekundách pokračovat
                 setTimeout(() => {
                     if (document.body.contains(debugDiv)) {
@@ -468,29 +486,44 @@ function selectAction(action) {
             // Spustit scanner
             qrScanner.start().then(() => {
                 isScanning = true;
-                debugDiv.innerHTML = '📱 QR Scanner aktivní<br>🔍 Nasměruj QR kód na kameru<br>📷 Kamera hledá QR kódy...';
+                debugDiv.innerHTML = `📱 QR Scanner aktivní pro ${videoId}<br>🔍 Nasměruj QR kód na kameru<br>📷 Kamera hledá QR kódy...`;
                 debugDiv.style.background = 'rgba(0,100,200,0.8)';
                 
                 // Uložit referenci pro pozdější zastavení
-                window.currentQRScanner = qrScanner;
+                if (videoId === 'video') {
+                    window.currentQRScanner = qrScanner;
+                } else {
+                    window.currentQRScanner2 = qrScanner;
+                }
                 
             }).catch(err => {
                 debugDiv.innerHTML = `❌ Chyba QR Scanner: ${err.message}<br>💡 Použijte "Zadat ručně"`;
                 debugDiv.style.background = 'rgba(200,0,0,0.8)';
+                console.error('QR Scanner chyba:', err);
             });
         }
 
         function stopScanning() {
             isScanning = false;
             
-            // Zastavit QR Scanner pokud běží
+            // Zastavit oba QR Scanner pokud běží
             if (window.currentQRScanner) {
                 try {
                     window.currentQRScanner.stop();
                     window.currentQRScanner.destroy();
                     window.currentQRScanner = null;
                 } catch (e) {
-                    console.log('Scanner už byl zastaven');
+                    console.log('Scanner 1 už byl zastaven');
+                }
+            }
+            
+            if (window.currentQRScanner2) {
+                try {
+                    window.currentQRScanner2.stop();
+                    window.currentQRScanner2.destroy();
+                    window.currentQRScanner2 = null;
+                } catch (e) {
+                    console.log('Scanner 2 už byl zastaven');
                 }
             }
             
@@ -499,13 +532,11 @@ function selectAction(action) {
                 stream = null;
             }
             
-            // Odstranit debug info pokud existuje
-            const debugDivs = document.querySelectorAll('div[style*="position: absolute"]');
+            // Odstranit všechny debug info
+            const debugDivs = document.querySelectorAll('div[id*="qr-debug"]');
             debugDivs.forEach(div => {
-                if (div.innerHTML && (div.innerHTML.includes('Scanner') || div.innerHTML.includes('QR') || div.innerHTML.includes('Kamera'))) {
-                    if (document.body.contains(div)) {
-                        document.body.removeChild(div);
-                    }
+                if (document.body.contains(div)) {
+                    document.body.removeChild(div);
                 }
             });
         }

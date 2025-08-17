@@ -364,16 +364,39 @@
             const canvas = document.getElementById(videoId === 'video' ? 'canvas' : 'canvas2');
             const context = canvas.getContext('2d');
 
+            // Přidáme debug informace
+            const debugDiv = document.createElement('div');
+            debugDiv.style.position = 'absolute';
+            debugDiv.style.top = '10px';
+            debugDiv.style.left = '10px';
+            debugDiv.style.background = 'rgba(0,0,0,0.7)';
+            debugDiv.style.color = 'white';
+            debugDiv.style.padding = '10px';
+            debugDiv.style.borderRadius = '5px';
+            debugDiv.style.fontSize = '12px';
+            debugDiv.innerHTML = 'Spouštím kameru...';
+            document.body.appendChild(debugDiv);
+
             navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment' } 
+                video: { 
+                    facingMode: 'environment',
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                } 
             }).then(mediaStream => {
                 stream = mediaStream;
                 video.srcObject = mediaStream;
                 isScanning = true;
+                debugDiv.innerHTML = 'Kamera spuštěna, čekám na video...';
                 
                 video.onloadedmetadata = () => {
+                    video.play();
+                };
+
+                video.onplaying = () => {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
+                    debugDiv.innerHTML = `Skenuji QR kódy... (${canvas.width}x${canvas.height})`;
                     scanQR();
                 };
 
@@ -384,7 +407,11 @@
                         const code = jsQR(imageData.data, imageData.width, imageData.height);
                         
                         if (code) {
-                            scanCallback(code.data);
+                            debugDiv.innerHTML = `QR nalezen: ${code.data}`;
+                            setTimeout(() => {
+                                document.body.removeChild(debugDiv);
+                                scanCallback(code.data);
+                            }, 500);
                             return;
                         }
                     }
@@ -392,8 +419,22 @@
                         requestAnimationFrame(scanQR);
                     }
                 }
+
+                // Automatické odstranění debug info po 5 sekundách
+                setTimeout(() => {
+                    if (document.body.contains(debugDiv)) {
+                        debugDiv.innerHTML = 'Nasměruj QR kód na kameru';
+                    }
+                }, 5000);
+
             }).catch(err => {
+                debugDiv.innerHTML = `Chyba kamery: ${err.message}`;
                 alert('Chyba při spuštění kamery: ' + err.message);
+                setTimeout(() => {
+                    if (document.body.contains(debugDiv)) {
+                        document.body.removeChild(debugDiv);
+                    }
+                }, 3000);
             });
         }
 
@@ -403,6 +444,13 @@
                 stream.getTracks().forEach(track => track.stop());
                 stream = null;
             }
+            // Odstranit debug info pokud existuje
+            const debugDivs = document.querySelectorAll('div[style*="position: absolute"]');
+            debugDivs.forEach(div => {
+                if (div.innerHTML.includes('Skenuji') || div.innerHTML.includes('QR') || div.innerHTML.includes('Kamera')) {
+                    document.body.removeChild(div);
+                }
+            });
         }
 
         function scanForStudent(qrData) {

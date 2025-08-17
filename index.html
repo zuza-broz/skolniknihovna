@@ -179,16 +179,44 @@ async function startScanner(onText){
   try{
     if(!html5Qr) html5Qr = new Html5Qrcode("qr-region");
     const devices = await Html5Qrcode.getCameras();
-    if(devices && devices.length){
-      cameraId = devices.find(d=>d.label.toLowerCase().includes('back'))?.id || devices[0].id;
+
+    if (!devices || !devices.length) {
+      toast("V zařízení nebyla nalezena žádná kamera.");
+      show($('#scanner'), false);
+      return;
     }
-    await html5Qr.start(
-      { deviceId: { exact: cameraId } },
-      { fps: 12, qrbox: 250, aspectRatio: 1.333, formatsToSupport:[ Html5QrcodeSupportedFormats.QR_CODE ] },
-      decoded => { stopScanner(); onText(decoded.trim()); },
-      err => {}
+
+    let cameraId;
+    // Preferujeme zadní kameru, pokud existuje (hledáme v jejím názvu klíčová slova)
+    const backCamera = devices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('zadní')
     );
-  }catch(e){ console.error(e); toast("Nepodařilo se spustit kameru. Povolit přístup?"); show($('#scanner'), false); }
+    
+    if (backCamera) {
+      cameraId = backCamera.id;
+      // Pro ladění můžeme do konzole vypsat, jakou kameru používáme
+      console.log("Používám zadní kameru:", backCamera.label);
+    } else {
+      // Pokud zadní kamera není (např. na notebooku), použijeme první dostupnou
+      cameraId = devices[0].id;
+      console.log("Zadní kamera nenalezena, používám první dostupnou:", devices[0].label);
+    }
+
+    await html5Qr.start(
+      cameraId,
+      { fps: 12, qrbox: { width: 250, height: 250 }, formatsToSupport:[ Html5QrcodeSupportedFormats.QR_CODE ] },
+      decodedText => {
+        stopScanner();
+        onText(decodedText.trim());
+      },
+      errorMessage => { /* ignorujeme chyby během skenování */ }
+    );
+  }catch(e){
+    console.error("Chyba při startu skeneru:", e);
+    toast("Kameru se nepodařilo spustit. Zkontrolujte oprávnění v prohlížeči.");
+    show($('#scanner'), false);
+  }
 }
 async function stopScanner(){
   try{ if(html5Qr && html5Qr.isScanning) await html5Qr.stop(); if(html5Qr) await html5Qr.clear(); }catch(e){}

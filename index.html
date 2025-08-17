@@ -6,7 +6,9 @@
 <title>Školní knihovna – výpůjčky a vratky</title>
 
 <!-- QR skener -->
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.9/minified/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"
+        onerror="(function(){var s=document.createElement('script');s.src='https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js';document.head.appendChild(s);})();">
+</script>
 <style>
   :root{
     --bg1:#6b63ff; --bg2:#6aa5ff; --card:#fff; --text:#111827;
@@ -38,6 +40,7 @@
   }
   .btn:active{transform:translateY(1px)}
   .btn-secondary{background:#f3f4f6; color:#111}
+  .btn-disabled{background:#d1d5db; cursor:not-allowed}
   .actions{display:flex; gap:12px}
   .action{flex:1; padding:16px; border-radius:16px; background:#f3f4f6; text-align:center; cursor:pointer; user-select:none}
   .action .emoji{font-size:44px}
@@ -57,6 +60,8 @@
   .modal-card{width:100%; max-width:420px; background:#fff; border-radius:18px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.25); text-align:center}
   .modal h3{margin:6px 0 10px; font-size:21px}
   .toast{position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:10px 14px; border-radius:12px; font-weight:600; z-index:30}
+  
+  .debug{background:#f3f4f6; padding:10px; border-radius:8px; margin:10px 0; font-size:12px; font-family:monospace}
 </style>
 </head>
 <body>
@@ -66,6 +71,9 @@
     <h1>Školní knihovna</h1>
     <div class="subtitle">Půjčování a vracení pomocí QR kódů</div>
   </div>
+
+  <!-- Debug info -->
+  <div id="debugInfo" class="debug hidden"></div>
 
   <!-- 1) ŽÁK -->
   <div id="step-student" class="card">
@@ -134,18 +142,27 @@ const STORAGE_ALL   = "sk_knihovna_all_v1";
 const STORAGE_QUEUE = "sk_knihovna_queue_v1";
 
 let state = { name:null, clazz:null, action:null, book:null };
-let html5Qr, cameraId=null, torchOn=false;
+let html5Qr, availableCameras = [], currentCameraIndex = 0, torchOn = false, isScanning = false;
 let onScanResult = () => {};
 
 const $ = s => document.querySelector(s);
 const show = (el, yes=true) => el.classList.toggle('hidden', !yes);
 const toast = (msg, ms=2200) => { const t=$('#toast'); t.textContent=msg; show(t,true); setTimeout(()=>show(t,false),ms); };
 
+// Debug funkce
+function debug(msg) {
+  console.log(msg);
+  const debugEl = $('#debugInfo');
+  debugEl.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${msg}</div>`;
+  show(debugEl, true);
+}
+
 function parseStudent(raw){
   const parts = String(raw||'').split('|').map(s=>s.trim()).filter(Boolean);
   if(parts.length<2) return null;
   return { name:parts[0], clazz:parts[1] };
 }
+
 function resetUI(){
   state = { name:null, clazz:null, action:null, book:null };
   $('#studentInput').value = ""; $('#bookInput').value = ""; $('#studentPreview').textContent="";
@@ -166,84 +183,232 @@ function goAction(){
   state.name = parsed.name; state.clazz = parsed.clazz;
   show($('#step-student'), false); show($('#step-action'), true);
 }
+
 function goBook(){
   const v = $('#bookInput').value.trim();
   if(!v){ toast("Zadej/naskenuj název knihy."); return; }
   state.book = v; confirmModal();
 }
 
-/* ===== QR SCAN ===== */
-async function startScanner(onText){
-  show($('#scanner'), true);
-  try{
-    // 1) explicitně vyžádej povolení (vyvolá systémový dialog, pokud ještě nebyl)
-    const pre = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } }
-    });
-    // hned uvolnit
-    pre.getTracks().forEach(t=>t.stop());
+/* ===== Detekce prostředí ===== */
+function checkEnvironment() {
+  debug(`Protocol: ${location.protocol}`);
+  debug(`Host: ${location.host}`);
+  debug(`User Agent: ${navigator.userAgent.substring(0, 100)}...`);
+  debug(`MediaDevices support: ${!!navigator.mediaDevices}`);
+  debug(`getUserMedia support: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
+}
 
-    if(!html5Qr) html5Qr = new Html5Qrcode("qr-region");
-
-    // 2) získej kamery a vyber "reálnou" (ne OBS / Screen / Virtual)
-    let devices = await Html5Qrcode.getCameras();
-    if(!devices || !devices.length){
-      throw new Error("Nebyla nalezena žádná kamera.");
+/* ===== Inicializace kamer ===== */
+async function initializeCameras() {
+  try {
+    debug("Inicializuji kamery...");
+    
+    // Zkontroluj základní podporu
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Prohlížeč nepodporuje přístup ke kameře");
     }
-    // preferuj zadní, případně filtruj virtuální
-    const isReal = d => !/virtual|obs|screen|capture/i.test(d.label);
-    const back = devices.find(d => /back|rear|environment|zadn/i.test(d.label) && isReal(d));
-    const firstReal = devices.find(isReal) || devices[0];
-    const chosen = back || firstReal;
 
-    console.log("Kamery:", devices);
-    console.log("Použiju kameru:", chosen);
+    // Získej seznam kamer
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    
+    debug(`Nalezeno ${videoDevices.length} video zařízení`);
+    videoDevices.forEach((device, index) => {
+      debug(`${index}: ${device.label || 'Neznámá kamera'} (${device.deviceId.substring(0, 10)}...)`);
+    });
 
-    // 3) spusť html5-qrcode
+    if (videoDevices.length === 0) {
+      throw new Error("Nebyla nalezena žádná kamera");
+    }
+
+    availableCameras = videoDevices;
+    return true;
+  } catch (error) {
+    debug(`Chyba při inicializaci kamer: ${error.message}`);
+    return false;
+  }
+}
+
+/* ===== QR SCANNER ===== */
+async function startScanner(onText){
+  if (isScanning) {
+    debug("Scanner už běží");
+    return;
+  }
+
+  try {
+    show($('#scanner'), true);
+    debug("Spouštím scanner...");
+    
+    // Inicializuj kamery pokud ještě nebyly
+    if (availableCameras.length === 0) {
+      const success = await initializeCameras();
+      if (!success) {
+        throw new Error("Nepodařilo se inicializovat kamery");
+      }
+    }
+
+    // Vytvoř html5Qr instance pokud neexistuje
+    if (!html5Qr) {
+      html5Qr = new Html5Qrcode("qr-region");
+      debug("Vytvořena Html5Qrcode instance");
+    }
+
+    // Vyber kameru (preferuj zadní kameru)
+    let selectedCamera = availableCameras[currentCameraIndex];
+    
+    // Pokud je k dispozici více kamer, zkus najít zadní
+    if (availableCameras.length > 1 && currentCameraIndex === 0) {
+      const backCamera = availableCameras.find(camera => 
+        /back|rear|environment|zadní/i.test(camera.label)
+      );
+      if (backCamera) {
+        selectedCamera = backCamera;
+        currentCameraIndex = availableCameras.indexOf(backCamera);
+      }
+    }
+
+    debug(`Používám kameru: ${selectedCamera.label || 'Neznámá kamera'}`);
+
+    // Nastav scanning flag
+    isScanning = true;
+
+    // Spusť scanner
     await html5Qr.start(
-      { deviceId: { exact: chosen.id } },
-      { fps: 12, qrbox: { width: 250, height: 250 }, formatsToSupport:[ Html5QrcodeSupportedFormats.QR_CODE ] },
-      decoded => { stopScanner(); onText(decoded.trim()); },
-      _ => {}
+      selectedCamera.deviceId,
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+      },
+      (decodedText) => {
+        debug(`QR kód načten: ${decodedText.substring(0, 50)}...`);
+        stopScanner();
+        onText(decodedText.trim());
+      },
+      (errorMessage) => {
+        // Tiché logování chyb - normální při skenování
+      }
     );
 
-  }catch(e){
-    console.error("Camera error:", e);
-    const name = e?.name || "";
-    const msg  = e?.message || String(e);
-    let hint = "";
-    if(name==="NotAllowedError")  hint = "Povolte kameru v prohlížeči (ikona zámku → Kamera → Povolit).";
-    if(name==="NotFoundError")    hint = "Zařízení nemá dostupnou kameru / je vypnutá.";
-    if(name==="NotReadableError") hint = "Kameru používá jiná aplikace (Teams/Meet) nebo ji blokuje OS.";
-    if(name==="SecurityError")    hint = "Stránka musí běžet přes HTTPS (GitHub Pages je OK).";
-    toast(`Kamera: ${name||"Chyba"} – ${msg}${hint ? " • " + hint : ""}`, 7000);
+    debug("Scanner úspěšně spuštěn");
+
+  } catch (error) {
+    debug(`Chyba scanneru: ${error.message}`);
+    isScanning = false;
+    
+    let userMessage = "Chyba při spuštění kamery: ";
+    
+    if (error.name === "NotAllowedError") {
+      userMessage += "Povolte přístup ke kameře v prohlížeči.";
+    } else if (error.name === "NotFoundError") {
+      userMessage += "Kamera nebyla nalezena nebo není dostupná.";
+    } else if (error.name === "NotReadableError") {
+      userMessage += "Kameru používá jiná aplikace.";
+    } else if (error.name === "SecurityError") {
+      userMessage += "Stránka musí běžet přes HTTPS.";
+    } else {
+      userMessage += error.message;
+    }
+    
+    toast(userMessage, 5000);
     show($('#scanner'), false);
   }
 }
-async function stopScanner(){
-  try{ if(html5Qr && html5Qr.isScanning) await html5Qr.stop(); if(html5Qr) await html5Qr.clear(); }catch(e){}
-}
-$('#scanStudentBtn').onclick = ()=>{ onScanResult = txt=>{ $('#studentInput').value = txt; updateStudentPreview(); goAction(); }; startScanner(onScanResult); };
-$('#scanBookBtn').onclick    = ()=>{ onScanResult = txt=>{ $('#bookInput').value   = txt; goBook(); }; startScanner(onScanResult); };
-$('#cancelScan').onclick = ()=>{ stopScanner(); show($('#scanner'), false); };
-$('#flipBtn').onclick    = async()=>{ if(!html5Qr) return; stopScanner(); startScanner(onScanResult); };
-$('#torchBtn').onclick   = async()=>{ if(!html5Qr) return; try{ torchOn=!torchOn; await html5Qr.applyVideoConstraints({advanced:[{torch:torchOn}]}); }catch(_){ toast("Svítilna není dostupná."); }};
 
-/* ===== UI události ===== */
+async function stopScanner(){
+  try {
+    if (html5Qr && isScanning) {
+      debug("Zastavujem scanner...");
+      await html5Qr.stop();
+      await html5Qr.clear();
+      debug("Scanner zastaven");
+    }
+  } catch (error) {
+    debug(`Chyba při zastavení scanneru: ${error.message}`);
+  } finally {
+    isScanning = false;
+  }
+}
+
+// Přepínání kamer
+async function switchCamera() {
+  if (!isScanning || availableCameras.length <= 1) return;
+  
+  try {
+    debug("Přepínám kameru...");
+    await stopScanner();
+    currentCameraIndex = (currentCameraIndex + 1) % availableCameras.length;
+    setTimeout(() => startScanner(onScanResult), 500);
+  } catch (error) {
+    debug(`Chyba při přepínání kamery: ${error.message}`);
+  }
+}
+
+// Svítilna
+async function toggleTorch() {
+  if (!html5Qr || !isScanning) return;
+  
+  try {
+    torchOn = !torchOn;
+    await html5Qr.applyVideoConstraints({
+      advanced: [{ torch: torchOn }]
+    });
+    debug(`Svítilna: ${torchOn ? 'ZAP' : 'VYP'}`);
+  } catch (error) {
+    debug("Svítilna není dostupná na tomto zařízení");
+    toast("Svítilna není dostupná.", 2000);
+  }
+}
+
+/* ===== EVENT LISTENERY ===== */
+$('#scanStudentBtn').onclick = () => {
+  onScanResult = txt => {
+    $('#studentInput').value = txt;
+    updateStudentPreview();
+    goAction();
+  };
+  startScanner(onScanResult);
+};
+
+$('#scanBookBtn').onclick = () => {
+  onScanResult = txt => {
+    $('#bookInput').value = txt;
+    goBook();
+  };
+  startScanner(onScanResult);
+};
+
+$('#cancelScan').onclick = () => {
+  stopScanner();
+  show($('#scanner'), false);
+};
+
+$('#flipBtn').onclick = switchCamera;
+$('#torchBtn').onclick = toggleTorch;
+
 $('#studentInput').addEventListener('input', updateStudentPreview);
-$('#studentInput').addEventListener('keydown', e=>{ if(e.key==='Enter') goAction(); });
-$('#bookInput').addEventListener('keydown', e=>{ if(e.key==='Enter') goBook(); });
-$('#btnBorrow').onclick = ()=>{ state.action="PŮJČKA"; show($('#step-action'), false); show($('#step-book'), true); };
-$('#btnReturn').onclick = ()=>{ state.action="VRATKA";  show($('#step-action'), false); show($('#step-book'), true); };
+$('#studentInput').addEventListener('keydown', e => { if(e.key==='Enter') goAction(); });
+$('#bookInput').addEventListener('keydown', e => { if(e.key==='Enter') goBook(); });
+$('#btnBorrow').onclick = () => { state.action="PŮJČKA"; show($('#step-action'), false); show($('#step-book'), true); };
+$('#btnReturn').onclick = () => { state.action="VRATKA";  show($('#step-action'), false); show($('#step-book'), true); };
 
 /* ===== Potvrzení ===== */
 function confirmModal(){
   const verb = state.action==='VRATKA' ? 'VRÁCENA' : 'PŮJČENA';
   $('#modalEmoji').textContent = state.action==='VRATKA' ? '✅' : '📦';
-  $('#confirmText').textContent = `Kniha „${state.book}“ byla ${verb} na jméno ${state.name} (${state.clazz}).`;
+  $('#confirmText').textContent = `Kniha „${state.book}" byla ${verb} na jméno ${state.name} (${state.clazz}).`;
   show($('#confirmModal'), true);
 }
-$('#okBtn').onclick = ()=>{ show($('#confirmModal'), false); saveAndQueue(); toast("Uloženo."); resetUI(); };
+
+$('#okBtn').onclick = () => {
+  show($('#confirmModal'), false);
+  saveAndQueue();
+  toast("Uloženo.");
+  resetUI();
+};
 
 /* ===== Uložení + fronta + odesílání ===== */
 function getAll(){ return JSON.parse(localStorage.getItem(STORAGE_ALL) || "[]"); }
@@ -273,8 +438,9 @@ async function sendQueue(){
       await sendOne(rec);
       // úspěch → odstranit z fronty
       const rest = getQueue().filter(x=>x.id!==rec.id); setQueue(rest);
+      debug(`Odesláno: ${rec.student} - ${rec.book}`);
     }catch(e){
-      console.warn("Odeslání selhalo:", e.message);
+      debug(`Odeslání selhalo: ${e.message}`);
       // ponech v queue; zkusíme později
     }
   }
@@ -295,10 +461,14 @@ async function sendOne(rec){
 window.addEventListener('online', sendQueue);
 setInterval(sendQueue, 15000); // každých 15 s zkus doodeslat
 
-// start
-resetUI();
-sendQueue(); // doodeslat hned po otevření
+// Inicializace při načtení
+window.addEventListener('load', async () => {
+  debug("Aplikace načtena");
+  checkEnvironment();
+  await initializeCameras();
+  resetUI();
+  sendQueue(); // doodeslat hned po otevření
+});
 </script>
 </body>
 </html>
-

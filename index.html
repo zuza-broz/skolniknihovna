@@ -177,44 +177,47 @@ function goBook(){
 async function startScanner(onText){
   show($('#scanner'), true);
   try{
+    // 1) explicitně vyžádej povolení (vyvolá systémový dialog, pokud ještě nebyl)
+    const pre = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } }
+    });
+    // hned uvolnit
+    pre.getTracks().forEach(t=>t.stop());
+
     if(!html5Qr) html5Qr = new Html5Qrcode("qr-region");
-    const devices = await Html5Qrcode.getCameras();
 
-    if (!devices || !devices.length) {
-      toast("V zařízení nebyla nalezena žádná kamera.");
-      show($('#scanner'), false);
-      return;
+    // 2) získej kamery a vyber "reálnou" (ne OBS / Screen / Virtual)
+    let devices = await Html5Qrcode.getCameras();
+    if(!devices || !devices.length){
+      throw new Error("Nebyla nalezena žádná kamera.");
     }
+    // preferuj zadní, případně filtruj virtuální
+    const isReal = d => !/virtual|obs|screen|capture/i.test(d.label);
+    const back = devices.find(d => /back|rear|environment|zadn/i.test(d.label) && isReal(d));
+    const firstReal = devices.find(isReal) || devices[0];
+    const chosen = back || firstReal;
 
-    let cameraId;
-    // Preferujeme zadní kameru, pokud existuje (hledáme v jejím názvu klíčová slova)
-    const backCamera = devices.find(device => 
-        device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('zadní')
-    );
-    
-    if (backCamera) {
-      cameraId = backCamera.id;
-      // Pro ladění můžeme do konzole vypsat, jakou kameru používáme
-      console.log("Používám zadní kameru:", backCamera.label);
-    } else {
-      // Pokud zadní kamera není (např. na notebooku), použijeme první dostupnou
-      cameraId = devices[0].id;
-      console.log("Zadní kamera nenalezena, používám první dostupnou:", devices[0].label);
-    }
+    console.log("Kamery:", devices);
+    console.log("Použiju kameru:", chosen);
 
+    // 3) spusť html5-qrcode
     await html5Qr.start(
-      cameraId,
+      { deviceId: { exact: chosen.id } },
       { fps: 12, qrbox: { width: 250, height: 250 }, formatsToSupport:[ Html5QrcodeSupportedFormats.QR_CODE ] },
-      decodedText => {
-        stopScanner();
-        onText(decodedText.trim());
-      },
-      errorMessage => { /* ignorujeme chyby během skenování */ }
+      decoded => { stopScanner(); onText(decoded.trim()); },
+      _ => {}
     );
+
   }catch(e){
-    console.error("Chyba při startu skeneru:", e);
-    toast("Kameru se nepodařilo spustit. Zkontrolujte oprávnění v prohlížeči.");
+    console.error("Camera error:", e);
+    const name = e?.name || "";
+    const msg  = e?.message || String(e);
+    let hint = "";
+    if(name==="NotAllowedError")  hint = "Povolte kameru v prohlížeči (ikona zámku → Kamera → Povolit).";
+    if(name==="NotFoundError")    hint = "Zařízení nemá dostupnou kameru / je vypnutá.";
+    if(name==="NotReadableError") hint = "Kameru používá jiná aplikace (Teams/Meet) nebo ji blokuje OS.";
+    if(name==="SecurityError")    hint = "Stránka musí běžet přes HTTPS (GitHub Pages je OK).";
+    toast(`Kamera: ${name||"Chyba"} – ${msg}${hint ? " • " + hint : ""}`, 7000);
     show($('#scanner'), false);
   }
 }

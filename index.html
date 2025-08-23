@@ -187,7 +187,7 @@
         student,
         book,
         action,
-        timestamp: new Date().toLocaleString('cs-CZ')
+        timestamp: new Date().toLocaleString('cs-CZ') // např. "18. 8. 2025 14:05:00"
       };
       records.push(record);
       localStorage.setItem('libraryRecords', JSON.stringify(records));
@@ -454,23 +454,61 @@
       }
     }
 
+    // =========================
+    // CSV export (opraveno: UTF‑8 BOM + středník + escapování)
+    // =========================
+
+    // Pomocná funkce pro escapování hodnot do CSV
+    function csvEscape(value) {
+      const s = String(value ?? "");
+      // Obsahuje středník, uvozovku nebo nový řádek? -> uzavřít do uvozovek a uvozovky zdvojit
+      if (/[;"\r\n]/.test(s)) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+
     function exportData() {
       const records = getRecords();
       if (records.length === 0) { alert('Žádná data k exportu.'); return; }
 
-      const csv = 'Datum,Čas,Žák,Kniha,Akce\n' + records.map(r => {
-        // cs-CZ toLocaleString: "18. 8. 2025 14:05:00"
-        const parts = r.timestamp.split(' ');
-        const datum = parts.slice(0, parts.length - 1).join(' '); // zachyť datum i případné mezerování
-        const cas = parts[parts.length - 1] || '';
-        return `${datum},${cas},${r.student},${r.book},${r.action}`;
-      }).join('\n');
+      const delimiter = ';';
+      const bom = '\uFEFF';
+      const header = ['Datum','Čas','Žák','Kniha','Akce'];
+
+      const lines = [];
+      lines.push(header.map(csvEscape).join(delimiter));
+
+      for (const r of records) {
+        // r.timestamp např. "18. 8. 2025 14:05:00"
+        const ts = String(r.timestamp || '').trim();
+        // Poslední část po mezeře bereme jako čas, zbytek jako datum (funguje i s mezerami v datu, např. "18. 8. 2025")
+        const parts = ts.split(' ');
+        const time = parts.pop() || '';
+        const date = parts.join(' ').trim();
+
+        const row = [
+          date,
+          time,
+          r.student,
+          r.book,
+          (r.action || '').toString().toUpperCase()
+        ].map(csvEscape).join(delimiter);
+
+        lines.push(row);
+      }
+
+      const csv = bom + lines.join('\r\n');
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `knihovna_export_${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `knihovna_export_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     function closeAdmin() {
